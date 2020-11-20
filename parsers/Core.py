@@ -9,9 +9,9 @@ def parseCoreConnections(workbook):
         logger.error("Error finding workbook {}".format(workbook))
         return None
     try:
-        worksheet = workbook.sheet_by_name("WAN Core Topology")
+        worksheet = workbook.sheet_by_name("WAN Core Routers")
     except:
-        logger.error("Error finding 'Wan Core Topology' sheet in spreadsheet")
+        logger.error("Error finding 'Wan Core Routers' sheet in spreadsheet")
         return None
     first_row = [] # The row where we stock the name of the column
     for col in range(worksheet.ncols):
@@ -24,27 +24,27 @@ def parseCoreConnections(workbook):
         try:
             name = core_rtr_links["Name"].strip()
             wan_links[name] = {}
-            if core_rtr_links["Interface to Halsey"].strip() != "":
-                wan_links[name][core_rtr_links["Interface to Halsey"].strip()] = {
-                    "neighbor hostname": "Halsey"
-                }
-            if core_rtr_links["Interface to Secaucus"].strip() != "":
-                wan_links[name][core_rtr_links["Interface to Secaucus"].strip()] = {
-                    "neighbor hostname": "Secaucus"
-                }
-            if core_rtr_links["Interface to Eighth"].strip() != "":
-                wan_links[name][core_rtr_links["Interface to Eighth"].strip()] = {
-                    "neighbor hostname": "Eighth"
-                }
-            if core_rtr_links["Interface to Hudson"].strip() != "":
-                wan_links[name][core_rtr_links["Interface to Hudson"].strip()] = {
-                    "neighbor hostname": "Hudson"
-                }
+            # if core_rtr_links["Interface to Halsey"].strip() != "":
+            #     wan_links[name][core_rtr_links["Interface to Halsey"].strip()] = {
+            #         "neighbor hostname": "Halsey"
+            #     }
+            # if core_rtr_links["Interface to Secaucus"].strip() != "":
+            #     wan_links[name][core_rtr_links["Interface to Secaucus"].strip()] = {
+            #         "neighbor hostname": "Secaucus"
+            #     }
+            # if core_rtr_links["Interface to Eighth"].strip() != "":
+            #     wan_links[name][core_rtr_links["Interface to Eighth"].strip()] = {
+            #         "neighbor hostname": "Eighth"
+            #     }
+            # if core_rtr_links["Interface to Hudson"].strip() != "":
+            #     wan_links[name][core_rtr_links["Interface to Hudson"].strip()] = {
+            #         "neighbor hostname": "Hudson"
+            #     }
         except KeyError as e:
-            logger.error("Unable to find column: {} in 'WAN Core Topology' sheet.".format(str(e)))
+            logger.error("Unable to find column: {} in 'WAN Core Routers' sheet.".format(str(e)))
             return None
         except Exception as e:
-            logger.error("Issue parsing 'WAN Core Topology' sheet")
+            logger.error("Issue parsing 'WAN Core Routers' sheet")
             return None
             
     #Add remote interface details to link

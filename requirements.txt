@@ -2,10 +2,11 @@ pyeapi==0.8.2
 jinja2==2.10.1
 PyYAML==5.3.1
 cvprac==1.0.4
-responses==0.12.1
 xlrd==1.2.0
+xlwt
 infoblox-client
 ipaddress
 requests
 responses
+cherrypy
 setuptools>=35

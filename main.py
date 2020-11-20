@@ -8,6 +8,8 @@ from ipam_client.ipam import ipam
 from switch import CoreRouter
 from sites import Site, SiteRouter
 from datetime import datetime
+import cherrypy
+import xlrd, xlwt
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -18,11 +20,111 @@ handler.setFormatter(formatter)
 logger = logging.getLogger(__name__)
 logger.addHandler(handler)
 
+config = {
+  'global' : {
+    'server.socket_host' : '127.0.0.1',
+    'server.socket_port' : 8080,
+    'server.thread_pool' : 8,
+    'server.ssl_module' : 'builtin'
+  }
+}
+
 username, password = None, None
 
-def getTestRouter():
-    global username, password
-    return CoreRouter(hostname="DC2-LF09", username=username, password=password)
+class Handler(object):
+    @cherrypy.expose
+    def index(self):
+        f = open("index.html", "r")
+        return f.read()
+    
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def run(self):
+
+        result = {"operation": "request", "result": "success"}
+        input_json = cherrypy.request.json
+        print("INPUT JSON")
+        print(json.dumps(input_json, indent=2))
+        run_script(**input_json)
+        return result
+    
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def log(self):
+        f = open("Deployment.log")
+        text = f.read()
+        f.close()
+        return json.dumps(text)
+
+    @cherrypy.expose
+    def readfile(self):
+        list_of_files = glob.glob('./workbooks/workbook*.xls*') # * means all if need specific format then *.csv
+        latest_file = max(list_of_files, key=os.path.getctime)
+
+        with xlrd.open_workbook(latest_file) as f:    
+            toReturn = {}
+            def format(v):
+                if type(v) == float:
+                    return {'type':'text','title':int(v), 'width':200 }
+                else:
+                    return {'type':'text','title':v, 'width':200 }
+
+            for n in range(0, f.nsheets):
+                _sheet=f.sheet_by_index(n)
+                _sheet.cell_value(0,0)
+                toReturn[_sheet.name] = {'data':[],'columns':[format(val) for val in _sheet.row_values(0)]}
+                for row in range(1, _sheet.nrows):
+                    row = _sheet.row_values(row)
+                    toReturn[_sheet.name]['data'].append(row)
+                
+        return json.dumps(toReturn)
+    
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def writefile(self):        
+        result = {"operation": "request", "result": "success"}
+        wb = xlwt.Workbook()
+        input_json = cherrypy.request.json
+        for sheet in input_json:
+            tab = sheet[0]
+            data = sheet[1:]
+            
+            ws = wb.add_sheet(tab)
+            for r, row in enumerate(data):
+                for c, v in enumerate(row):
+                    ws.write(r,c,v)
+
+        excel_file_name = "./workbooks/workbook.{}.xls".format(int(datetime.now().timestamp()))
+        wb.save(excel_file_name)
+
+        list_of_files = glob.glob('./workbooks/workbook.*.xls*')
+        if len(list_of_files) > 5:
+            oldest_file = min(list_of_files, key=os.path.getctime)
+            os.remove(oldest_file)
+
+        # Responses are serialized to JSON (because of the json_out decorator)
+        return result
+    
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def upload(self, myFile):
+        result = {"operation": "request", "result": "success"}
+
+        size = 0
+        excel_file_name = "./workbooks/workbook.{}.xls".format(int(datetime.now().timestamp()))
+        f = open(excel_file_name, "wb")
+        
+        while True:
+            data = myFile.file.read(8192)
+            f.write(data)
+            if not data:
+                f.close()
+                break
+
+        # Responses are serialized to JSON (because of the json_out decorator)
+        return result
 
 def printConfiglet(configlet_dictionary):
     print("_"*50)
@@ -176,7 +278,7 @@ def getCoreRouters(workbook, ipam, ipam_network):
 
     return core_routers
 
-def configureCoreFabric(core_rtrs, services, cvp_client=None):
+def configureCoreFabric(core_rtrs, services, cvp_client=None, include_mgmt=False):
     #Get Core Router Device Dictionary from CVP 
     if cvp_client is not None:
         cvp_core_rtr_info = getCoreRouterInfoFromCVP(cvp_client, core_rtrs)
@@ -186,12 +288,13 @@ def configureCoreFabric(core_rtrs, services, cvp_client=None):
         #Create list of configlets to apply
         configlets_to_apply = []
 
-        #Create management configuration
-        mgmt_config = rtr.produceManagementConfig()
-        configlets_to_apply.append({
-            "name": "{} Management".format(rtr.hostname),
-            "config": mgmt_config
-            })
+        if include_mgmt == True:
+            #Create management configuration
+            mgmt_config = rtr.produceManagementConfig()
+            configlets_to_apply.append({
+                "name": "{} Management".format(rtr.hostname),
+                "config": mgmt_config
+                })
         #Create Core Fabric Config
         core_config = rtr.produceCoreFabricConfig(services)
         configlets_to_apply.append({
@@ -274,10 +377,25 @@ def addSiteRouterConnections(core_rtrs, site_rtrs, ipam, ipam_network, cvp_clien
 def addServicesToSite(core_rtrs, site_rtrs, ipam, ipam_network, cvp_client=None):
     return addSiteRouterConnections(core_rtrs, site_rtrs, ipam, ipam_network, cvp_client=cvp_client)
 
-def main():
+def run_script(operation=None, user=None, passwd=None):
+    list_of_files = glob.glob('./workbooks/workbook*.xls*')
+    workbook = max(list_of_files, key=os.path.getctime)
+
+    #Get Services and Site Routers that the Core Routers are connected to
+    services = getServices(workbook)
+    site_rtrs = getSiteRouters(workbook)
+
+    #Get credentials for CVP
+    global username, password
+    username, password = user, passwd
+
     #Parse CVP details
     yaml_parsed = yaml.load(open("settings/cvp_info.yml"), Loader=yaml.FullLoader)
     cvp_nodes = [node for node in [ yaml_parsed['primary'], yaml_parsed['secondary'], yaml_parsed['tertiary'] ] if node is not None ]
+
+    #Create CVP client
+    cvp = CvpClient()
+    cvp.connect(cvp_nodes, username, password)
 
     #Parse IPAM details
     yaml_parsed = yaml.load(open("settings/ipam_info.yml"), Loader=yaml.FullLoader)
@@ -285,20 +403,6 @@ def main():
     ipam_type = yaml_parsed["type"]
     ipam_network = yaml_parsed["network"]
 
-    #Get source of information
-    workbook = "./MSK WAN Core.xlsx"
-    #Get Services and Site Routers that the Core Routers are connected to
-    services = getServices(workbook)
-    site_rtrs = getSiteRouters(workbook)
-
-    #Get credentials for CVP
-    global username, password
-    username, password = "cvpadmin", "nynjlab"
-
-    #Create CVP client
-    cvp = CvpClient()
-    cvp.connect(cvp_nodes, username, password)
-    
     #Create IPAM client and define IPAM network
     ipam_username, ipam_password = username, password
     cvp_ipam = ipam(ipam_type)
@@ -307,13 +411,27 @@ def main():
     #Get Core Router details
     core_rtrs = getCoreRouters(workbook, cvp_ipam, ipam_network)
 
-    print("GENERATING CORE CONFIGURATIONS...")
-    configureCoreFabric(core_rtrs, services, cvp_client=cvp)
-
-    print("GENERATING SITE CONFIGURATIONS...")
-    addSiteRouterConnections(core_rtrs, site_rtrs, cvp_ipam, ipam_network, cvp_client=cvp)
+    for rtr in core_rtrs:
+        print(rtr)
 
     return
 
-# if __name__ == "__main__":
-#     main()
+    if int(operation) == 1:
+        print("Creating Core Configs...")
+        configureCoreFabric(core_rtrs, services, cvp_client=cvp, include_mgmt=True)
+
+    elif int(operation) == 2:
+        print("Creating Site Configs...")
+        addSiteRouterConnections(core_rtrs, site_rtrs, cvp_ipam, ipam_network, cvp_client=cvp)
+
+    elif int(operation) == 3:
+        print("Adding New Sites to Core Configs")
+        configureCoreFabric(core_rtrs, services, cvp_client=cvp, include_mgmt=False)
+
+    elif int(operation) == 4:
+        print("Adding Services to Site")
+        addServicesToSite(core_rtrs, site_rtrs, cvp_ipam, ipam_network, cvp_client=cvp)
+
+
+if __name__ == "__main__":
+    cherrypy.quickstart(Handler(),'/',config = config)
