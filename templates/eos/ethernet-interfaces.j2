@@ -1,0 +1,71 @@
+{# eos - Ethernet Interfaces #}
+{% if ethernet_interfaces is defined and ethernet_interfaces is not none %}
+{%     for ethernet_interface in ethernet_interfaces | natural_sort %}
+interface {{ ethernet_interface }}
+{%         if ethernet_interfaces[ethernet_interface].description is defined and ethernet_interfaces[ethernet_interface].description is not none %}
+   description {{ ethernet_interfaces[ethernet_interface].description }}
+{%         endif %}
+{%         if ethernet_interfaces[ethernet_interface].shutdown is defined and ethernet_interfaces[ethernet_interface].shutdown == true %}
+   shutdown
+{%         endif %}
+{%         if ethernet_interfaces[ethernet_interface].speed is defined and ethernet_interfaces[ethernet_interface].speed is not none %}
+   speed forced {{ ethernet_interfaces[ethernet_interface].speed }}
+{%         endif %}
+{%         if ethernet_interfaces[ethernet_interface].channel_group is defined and ethernet_interfaces[ethernet_interface].channel_group is not none %}
+   channel-group {{ ethernet_interfaces[ethernet_interface].channel_group.id }} mode {{ ethernet_interfaces[ethernet_interface].channel_group.mode }}
+{%         else %}
+{%             if ethernet_interfaces[ethernet_interface].mtu is defined and ethernet_interfaces[ethernet_interface].mtu != 1500 %}
+   mtu {{ ethernet_interfaces[ethernet_interface].mtu }}
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].type is defined and ethernet_interfaces[ethernet_interface].type == "routed" %}
+   no switchport
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].flowcontrol is defined and ethernet_interfaces[ethernet_interface].flowcontrol is not none %}
+{%                 if ethernet_interfaces[ethernet_interface].flowcontrol.received is defined and ethernet_interfaces[ethernet_interface].flowcontrol.received is not none %}
+   flowcontrol receive {{ ethernet_interfaces[ethernet_interface].flowcontrol.received }}
+{%                 endif %}
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].type is defined and ethernet_interfaces[ethernet_interface].type == "subinterface" %}
+   encapsulation dot1q vlan {{ ethernet_interfaces[ethernet_interface].vlans }}
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].mode is defined and ethernet_interfaces[ethernet_interface].mode == "access" %}
+   switchport access vlan {{ ethernet_interfaces[ethernet_interface].vlans }}
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].vlans is defined and ethernet_interfaces[ethernet_interface].mode == "trunk" %}
+   switchport trunk allowed vlan {{ ethernet_interfaces[ethernet_interface].vlans }}
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].native_vlan is defined and ethernet_interfaces[ethernet_interface].mode == "trunk" %}
+   switchport trunk native vlan {{ ethernet_interfaces[ethernet_interface].native_vlan }}
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].mode is defined and ethernet_interfaces[ethernet_interface].mode == "trunk" %}
+   switchport mode {{ ethernet_interfaces[ethernet_interface].mode }}
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].trunk_groups is defined and ethernet_interfaces[ethernet_interface].trunk_groups is not none %}
+{%                 for  trunk_group in ethernet_interfaces[ethernet_interface].trunk_groups | natural_sort %}
+   switchport trunk group {{ trunk_group }}
+{%                 endfor %}
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].qos is defined and ethernet_interfaces[ethernet_interface].qos.trust is defined and ethernet_interfaces[ethernet_interface].qos.trust is not none %}
+   qos trust {{ ethernet_interfaces[ethernet_interface].qos.trust }}
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].spanning_tree_portfast is defined and ethernet_interfaces[ethernet_interface].spanning_tree_portfast == 'edge' %}
+   spanning-tree portfast
+{%             elif ethernet_interfaces[ethernet_interface].spanning_tree_portfast is defined and ethernet_interfaces[ethernet_interface].spanning_tree_portfast == 'network' %}
+   spanning-tree portfast network
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].spanning_tree_bpdufilter is defined and ethernet_interfaces[ethernet_interface].spanning_tree_bpdufilter == true %}
+   spanning-tree bpdufilter enable
+{%             endif%}
+{%             if ethernet_interfaces[ethernet_interface].spanning_tree_bpduguard is defined and ethernet_interfaces[ethernet_interface].spanning_tree_bpduguard == true %}
+   spanning-tree bpduguard enable
+{%             endif%}
+{%             if ethernet_interfaces[ethernet_interface].vrf is defined and ethernet_interfaces[ethernet_interface].vrf is not none %}
+   vrf {{ ethernet_interfaces[ethernet_interface].vrf }}
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].ip_address is defined and ethernet_interfaces[ethernet_interface].ip_address is not none %}
+   ip address {{ ethernet_interfaces[ethernet_interface].ip_address }}
+{%             endif %}
+{%         endif %}
+!
+{%     endfor %}
+{% endif %}

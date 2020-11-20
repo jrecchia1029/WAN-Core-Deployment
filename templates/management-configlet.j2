@@ -1,0 +1,13 @@
+{# Management Configuration #}
+{# Management VRF #}
+{% include 'eos/vrf-instances.j2' %}
+{# Management Interfaces #}
+{% include 'eos/management-interfaces.j2' %}
+{# IP Routing for Management VRF#}
+{% include 'eos/ip-routing.j2' %}
+{# default gateway} #}
+{% include 'eos/static-routes.j2' %}
+{# management api http #}
+{% include 'eos/management-api-http.j2' %}
+{# management ssh #}
+{# {% include 'eos/management-ssh.j2' %} #}

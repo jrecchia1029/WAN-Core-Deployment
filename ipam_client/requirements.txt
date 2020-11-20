@@ -1,0 +1,5 @@
+infoblox-client
+ipaddress
+requests
+responses
+setuptools>=35
