@@ -12,12 +12,8 @@ path = os.path.abspath(os.path.dirname(__file__))
 
 
 #Set up templates
-env = Environment(loader=FileSystemLoader('{}/templates'.format(path)))
+env = Environment(loader=FileSystemLoader('{}/templates'.format(path)), extensions=['jinja2.ext.do'])
 env.filters["natural_sort"] = natural_sort
-
-#Load Default values
-mgmt_values = yaml.load(open("{}/settings/config_defaults/management.yml".format(path)), Loader=yaml.FullLoader)
-bgp_values = yaml.load(open("{}/settings/config_defaults/bgp.yml".format(path)), Loader=yaml.FullLoader)
 
 class CoreRouter():
     """
@@ -176,6 +172,9 @@ class CoreRouter():
         self.asn = get_asn_from_ipam(ipam, ipam_network, asn_start, asn_end, self.hostname)
 
     def getCoreBGPNeighborInfo(self, core_rtrs):
+        #Load default values
+        bgp_values = yaml.load(open("{}/settings/config_defaults/bgp.yml".format(path)), Loader=yaml.FullLoader)
+
         self.logger.debug("Setting core_bgp_neighbors for {}".format(self.hostname))
         underlay_pg_name = bgp_values["underlay_peer_group"]
         overlay_pg_name = bgp_values["overlay_peer_group"]
@@ -258,9 +257,15 @@ class CoreRouter():
         return self.send_commands_via_eapi(["show lldp neighbors"])[0]["lldpNeighbors"]
 
     def produceManagementConfig(self):
+        #Load default values
+        mgmt_values = yaml.load(open("{}/settings/config_defaults/management.yml".format(path)), Loader=yaml.FullLoader)
+
         #Format variables for templates
         mgmt_vrf = mgmt_values["vrf_name"]
         mgmt_interface = mgmt_values["interface"]
+        include_terminattr = mgmt_values["include_terminattr"]
+        cvp_ips = mgmt_values["cvp"]["node_ips"]
+        ingestauth_key = mgmt_values["cvp"]["ingest_auth_key"] if mgmt_values["cvp"]["ingest_auth_key"] is not None else ""
         data = {
             "hostname": self.hostname,
             "vrfs":{
@@ -281,19 +286,37 @@ class CoreRouter():
                 "enable_vrfs": {
                     mgmt_vrf: {}
                 }
-            },
-            "static_routes":[{
-                "vrf": mgmt_vrf,
-                "destination_address_prefix": "0.0.0.0/0",
-                "gateway": self.mgmt_gateway
             }
-            ]
         }
+        if self.mgmt_gateway is not None:
+            data["static_routes"] = [
+                {
+                    "vrf": mgmt_vrf,
+                    "destination_address_prefix": "0.0.0.0/0",
+                    "gateway": self.mgmt_gateway
+                }
+            ]
+        if include_terminattr == True:
+            data["daemon_terminattr"] = {
+                "ingestgrpcurl":{
+                    "ips": cvp_ips,
+                    "port": "9910"
+                },
+                "ingestauth_key": ingestauth_key,
+                "smashexcludes": "ale,flexCounter,hardware,kni,pulse,strata",
+                "ingestexclude": "/Sysdb/cell/1/agent,/Sysdb/cell/2/agent",
+                "ingestvrf": mgmt_vrf,
+                "cvsourceip": self.ip_address.split("/")[0]
+            }
         template = env.get_template('management-configlet.j2')
+        rendered_config = template.render(data)
         self.logger.info("Rendered management config for {}".format(self.hostname))
-        return formatConfig( template.render(data) )
+        return formatConfig(rendered_config)
 
     def produceCoreFabricConfig(self, services, routing_details):
+        #Load default values
+        bgp_values = yaml.load(open("{}/settings/config_defaults/bgp.yml".format(path)), Loader=yaml.FullLoader)
+
         #Format variables for templates
         #Format Service VRFs
         vrfs = {}
@@ -413,13 +436,6 @@ class CoreRouter():
                     "redistribute_routes": bgp_values["service_redistribution_routes"],
                     "neighbors": {}
                 }
-                # for neighbor, info in self.core_bgp_neighbors.items():
-                #     if info["peer group"] == bgp_values["overlay_peer_group"]:
-                #         router_bgp["vrfs"][ service["vrf"] ]["neighbors"][ neighbor ] = {
-                #             "remote_as": info["asn"],
-                #              #Max routes for service VRF neighbors
-                #             "maximum_routes": bgp_values["service_vrfs"]["maximum_routes"]
-                #         }
         
         data = {
             "service_routing_protocols_model": "multi-agent",
@@ -433,11 +449,14 @@ class CoreRouter():
             "router_bgp": router_bgp
         }
         template = env.get_template('core-fabric-configlet.j2')
-        # print(formatConfig( template.render(data) ))
+        rendered_config = template.render(data)
         self.logger.info("Rendered core-to-core config for {}".format(self.hostname))
-        return formatConfig( template.render(data) )
+        return formatConfig(rendered_config)
     
     def produceCoreToSiteConfig(self):
+        #Load default values
+        bgp_values = yaml.load(open("{}/settings/config_defaults/bgp.yml".format(path)), Loader=yaml.FullLoader)
+
         #Format variables for templates
         ethernet_interfaces = {}
         for iface, details in self.site_interfaces.items():
@@ -485,8 +504,9 @@ class CoreRouter():
             "router_bgp": router_bgp
         }
         template = env.get_template('core-to-site-configlet.j2')
+        rendered_config = template.render(data)
         self.logger.info("Rendered core-to-site config for {}".format(self.hostname))
-        return formatConfig( template.render(data) )
+        return formatConfig(rendered_config)
 
 def get_transit_ip_from_ipam(ipam_client, view, transit_block, connection, subnet_mask=31):
     '''

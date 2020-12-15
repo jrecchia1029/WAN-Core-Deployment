@@ -1,4 +1,9 @@
-interface: Loopback0
+cvp:
+  ingest_auth_key: null
+  node_ips:
+  - 10.20.30.185
+include_terminattr: true
+interface: Management0
 interface_description: oob management
 vrf_description: management VRF
-vrf_name: default
+vrf_name: MGMT
