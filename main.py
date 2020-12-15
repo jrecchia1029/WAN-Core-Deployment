@@ -486,18 +486,11 @@ def addSiteRouterConnections(core_rtrs, site_rtrs, ipam, ipam_network, cvp_clien
 def addServicesToSite(core_rtrs, site_rtrs, ipam, ipam_network, cvp_client=None):
     return addSiteRouterConnections(core_rtrs, site_rtrs, ipam, ipam_network, cvp_client=cvp_client)
 
-def getRouterDetails(workbook, site_rtrs, cvp_ipam, cvp_ipam_network, ib_ipam=None, ib_ipam_network=None):
-    logger.info("Getting Router Details")
-    core_rtrs = getCoreRouters(workbook, cvp_ipam, cvp_ipam_network, ib_ipam=ib_ipam, ib_ipam_network=ib_ipam_network)
-        
+def printRouterDetails(core_rtrs, site_rtrs, ipam, ipam_network):
     for rtr in core_rtrs:
-        if ib_ipam is not None and ib_ipam_network is not None:
-            rtr.getSiteInterfaces(site_rtrs, ib_ipam, ib_ipam_network)
-        else:
-            rtr.getSiteInterfaces(site_rtrs, cvp_ipam, cvp_ipam_network)
-
-    for rtr in core_rtrs:
-        logger.info("{}".format(str(rtr)))
+        #Get site_interface info
+        rtr.getSiteInterfaces(site_rtrs, ipam, ipam_network)
+        logger.info("Site interfaces for {}\n{}\n\n".format(rtr.hostname, rtr.site_interfaces))
 
     return
 
@@ -569,17 +562,17 @@ def run_script(operation=None, cvp_user=None, cvp_pass=None,
     #Get Core Router details
     core_rtrs = getCoreRouters(workbook, cvp_ipam_client, cvp_ipam_view, ib_ipam=ib_ipam_client, ib_ipam_network=ib_ipam_view)
 
-    if int(operation) == 0:
+    if int(operation) == 1:
         logger.info("Creating Management Configs...")
         configureManagementConfig(core_rtrs, cvp_client=cvp, container='WAN-Core')
         logger.info("Successfully Generated and Applied Management Configs.")
 
-    if int(operation) == 1:
+    if int(operation) == 2:
         logger.info("Creating Core Configs...")
         configureCoreFabric(core_rtrs, services, routing_details, cvp_client=cvp, container=None)
         logger.info("Successfully Generated and Applied Core Configs.")
 
-    elif int(operation) == 2:
+    elif int(operation) == 3:
         logger.info("Creating Site Configs...")
         if ib_ipam_client is not None and ib_ipam_view is not None:
             addSiteRouterConnections(core_rtrs, site_rtrs, ib_ipam_client, ib_ipam_view, cvp_client=cvp)
@@ -587,80 +580,13 @@ def run_script(operation=None, cvp_user=None, cvp_pass=None,
             addSiteRouterConnections(core_rtrs, site_rtrs, cvp_ipam_client, cvp_ipam_view, cvp_client=cvp)
         logger.info("Successfully Generated and Applied Site Configs.")
 
-    elif int(operation) == 3:
-        logger.info("Adding New Sites to Core Configs")
-        configureCoreFabric(core_rtrs, services, routing_details, cvp_client=cvp)
-        logger.info("Successfully Updated Core Configs.")
-
-
-    elif int(operation) == 4:
-        logger.info("Adding Services to Site")
-        if ib_ipam_client is not None and ib_ipam_view is not None:
-            addServicesToSite(core_rtrs, site_rtrs, ib_ipam_client, ib_ipam_view, cvp_client=cvp)
-        else:
-            addServicesToSite(core_rtrs, site_rtrs, cvp_ipam_client, cvp_ipam_view, cvp_client=cvp)
-        logger.info("Successfully Updated Site Configs.")
-
-    elif int(operation) == 5:
+    elif int(operation) == 0:
         logger.info("Getting Router Details")
-        getRouterDetails(workbook, site_rtrs, cvp_ipam_client, cvp_ipam_view, ib_ipam=ib_ipam_client, ib_ipam_network=ib_ipam_view)
-        logger.info("Successfully Retrieved Router Details")
-
-def main():
-    list_of_files = glob.glob('./workbooks/workbook*.xls*')
-    workbook = max(list_of_files, key=os.path.getctime)
-
-    #Get Services and Site Routers that the Core Routers are connected to
-    routing_details = parseRoutingDetails(workbook)
-    services = getServices(workbook)
-    site_rtrs = getSiteRouters(workbook)
-
-    #Get credentials for CVP
-    global username, password
-    username, password = "cvpadmin", "nynjlab"
-    cvp_username, cvp_password = username, password
-    ib_username, ib_password = "admin", "Arista123"
-
-    #Parse CVP, CVP IPAM, and Infoblox Details
-    server_info = yaml.load(open("{}/settings/appl_info.yml".format(path)), Loader=yaml.FullLoader)
-
-    #Create CVP client
-    cvp_nodes = [node for node in [ server_info["cvp"]['primary'] ] if node is not None ]
-    cvp = CvpClient()
-    cvp.connect(cvp_nodes, username, password)
-
-    #Parse IPAM details
-    try:
-        cvp_ipam_view = server_info["cvp_ipam"]["network"]
-        cvp_ipam_client = ipam("cvp")
-        cvp_ipam_client.login(server_info["cvp"]["ip_address"], cvp_username, cvp_password)
-    except:
-        print("Unable to create CVP IPAM client")
-        return
-    try:
-        ib_ipam_view = server_info["infoblox"]["network"]
-        ib_ipam_client = ipam("infoblox")
-        ib_ipam_client.login(server_info["infoblox"]["ip_address"], ib_username, ib_password)
-    except:
-        print("Unable to creeate Infoblox IPAM client")
-        ib_ipam_view = None
-        ib_ipam_client = None
-
-    if ib_ipam_client is not None:
-        #Create networks/network_containers in routing details if they don't exist
-        create_main_networks_in_infoblox(ib_ipam_client, ib_ipam_view, routing_details) 
-        create_service_subnets_in_infoblox(ib_ipam_client, ib_ipam_view, services)
-
-    #Get Core Router details
-    core_rtrs = getCoreRouters(workbook, cvp_ipam_client, cvp_ipam_view, ib_ipam=ib_ipam_client, ib_ipam_network=ib_ipam_view)
-
-    for rtr in core_rtrs:
-        #Get site_interface info
-        if ib_ipam_client is not None and ib_ipam_view is not None:    
-            rtr.getSiteInterfaces(site_rtrs, ib_ipam_client, ib_ipam_view)
-            break
+        if ib_ipam_client is not None and ib_ipam_view is not None:
+            printRouterDetails(core_rtrs, site_rtrs, ib_ipam_client, ib_ipam_view)
         else:
-            rtr.getSiteInterfaces(site_rtrs, cvp_ipam_client, cvp_ipam_view)
+            printRouterDetails(core_rtrs, site_rtrs, cvp_ipam_client, cvp_ipam_view)
+        logger.info("Successfully Retrieved Router Details")
 
 
 if __name__ == "__main__":

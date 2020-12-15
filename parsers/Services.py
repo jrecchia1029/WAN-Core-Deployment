@@ -27,13 +27,12 @@ def parseServices(workbook):
             service[first_row[col]]=worksheet.cell_value(row,col)
         try:
             vrf = service["VRF"].strip()
-            vni = int(service["VNI"]) if service["VNI"] != "" else None
             sub_iface_subnet = service["Subinterface Subnet"].strip()
             sub_iface_vlan = int(service["Subinterface VLAN"]) if service["Subinterface VLAN"] != "" else None
             description = service["Description"].strip() if service["Description"].strip() != "" else None
             services.append({
                 "vrf": vrf,
-                "vni": vni,
+                "vni": 10000 + row-1,
                 "subinterface subnet": sub_iface_subnet,
                 "subinterface vlan": sub_iface_vlan,
                 "description": description

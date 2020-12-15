@@ -89,35 +89,23 @@
                 <input type="text" class="form-control" id="ib_network" aria-describedby="emailHelp" placeholder="IB Network View">
                 <br/>
             </div>
-            <button class="btn btn-success mgmt button" onclick="run(0)" data-toggle="modal" data-target="#deployModal" data-placement="right" title="Run to configure management configuration.">
+            <button class="btn btn-success mgmt button" onclick="run(1)" data-toggle="modal" data-target="#deployModal" data-placement="right" title="Run to configure management configuration.">
                 Configure Management
             </button>
        		<br/>
-            <button class="btn btn-success core button" onclick="run(1)" data-toggle="modal" data-target="#deployModal" data-placement="right" title="Run to add services to core routers, create connections between core routers, and share services via BGP and EVPN.">
+            <button class="btn btn-success core button" onclick="run(2)" data-toggle="modal" data-target="#deployModal" data-placement="right" title="Run to add services to core routers, create connections between core routers, and share services via BGP and EVPN.">
                 Configure Intra-WAN Core
             </button>
             <br/>
-            <button class="btn btn-success site button" onclick="run(2)" data-toggle="modal" data-target="#deployModal" data-placement="right" title="Run to create connections between core routers and existing/new site routers and share particular services based off of the location of the site routers.">
+            <button class="btn btn-success site button" onclick="run(3)" data-toggle="modal" data-target="#deployModal" data-placement="right" title="Run to create connections between core routers and existing/new site routers and share particular services based off of the location of the site routers.">
                 Configure WAN Core to Site Edges
             </button>
             <br/>
             <br/>
-            <!-- <button class="btn btn-success site button" onclick="run(3)" data-toggle="modal" data-target="#deployModal">Add New Service or Add New Core Router</button>
-            <br/>
-            <button class="btn btn-success service button" onclick="run(4)" data-toggle="modal" data-target="#deployModal">Add Service to Site</button>
-            <br/>
-            <br/> -->
-            <button class="btn btn-success service button" onclick="run(5)" data-toggle="modal" data-target="#deployModal" data-placement="right" title="Run to display details retrieved for core routers based off of LLDP Neighbors and data in CVP IPAM and/or Infoblox IPAM.">
+            <button class="btn btn-success service button" onclick="run(0)" data-toggle="modal" data-target="#deployModal" data-placement="right" title="Run to display details retrieved for core routers based off of LLDP Neighbors and data in CVP IPAM and/or Infoblox IPAM.">
                 Show Core Router Details
             </button>
             <br/>
-<!--
-            <button class="btn btn-primary merge button">Merge configlets</button>
-            <br/>
-            <button class="btn btn-primary remove button">Remove configlets</button>
-            <br/>
-            <br/>
-        -->
             <button class="btn btn-primary button" data-toggle="modal" data-target="#uploadModal">Upload file</button>
             <br/>
             <button class="btn btn-primary write button">Write File</button>

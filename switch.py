@@ -210,24 +210,15 @@ class CoreRouter():
                             "subnet": None,
                         }
                     for service in rtr.site.services:
-                        if service["vrf"] == "default":
-                            site_interfaces["{}".format(neighbor["port"])] = {
-                                    "neighbor router": rtr,
-                                    "neighbor interface": "{}".format(neighbor["neighborPort"]),
-                                    "ip address": None,
-                                    "neighbor ip address": None,
-                                    "subnet": service["subinterface subnet"]
-                                }
-                        else:
-                            site_interfaces["{}.{}".format(neighbor["port"], service["subinterface vlan"])] = {
-                                    "neighbor router": rtr,
-                                    "neighbor interface": "{}.{}".format(neighbor["neighborPort"], service["subinterface vlan"]),
-                                    "ip address": None,
-                                    "neighbor ip address": None,
-                                    "vlan":  service["subinterface vlan"],
-                                    "vrf": service["vrf"],
-                                    "subnet": service["subinterface subnet"]
-                                }
+                        site_interfaces["{}.{}".format(neighbor["port"], service["subinterface vlan"])] = {
+                                "neighbor router": rtr,
+                                "neighbor interface": "{}.{}".format(neighbor["neighborPort"], service["subinterface vlan"]),
+                                "ip address": None,
+                                "neighbor ip address": None,
+                                "vlan":  service["subinterface vlan"],
+                                "vrf": service["vrf"],
+                                "subnet": service["subinterface subnet"]
+                            }
         # #Get IP Address for site interfaces
         for interface, details in site_interfaces.items():
             if details["subnet"] is None:
@@ -462,14 +453,14 @@ class CoreRouter():
         for iface, details in self.site_interfaces.items():
             ethernet_interfaces[iface] = {
                 "description": "Connection to {} : {}".format(details["neighbor router"].hostname, details["neighbor interface"]),
-                "ip_address": details["ip address"],
                 "type": "routed"
             }
             if "." in iface:
                 ethernet_interfaces[iface]["type"] = "subinterface"
                 ethernet_interfaces[iface]["vrf"] = details["vrf"]
                 ethernet_interfaces[iface]["vlans"] = details["vlan"]
-        
+                ethernet_interfaces[iface]["ip_address"] = details["ip address"]
+
         #Format BGP & VRF variables 
         router_bgp = {
             "as": self.asn,
