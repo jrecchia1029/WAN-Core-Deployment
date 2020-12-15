@@ -1,3 +1,8 @@
-ip_address: 10.20.30.185
-type: "cvp"
-network: "demo"
+cvp:
+  ip_address: 10.20.30.185
+  type: "cvp"
+  network: "demo"
+infoblox:
+  ip_address: 10.20.30.180
+  type: "infoblox"
+  network: "default"

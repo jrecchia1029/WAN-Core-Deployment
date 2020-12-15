@@ -1,0 +1,4 @@
+interface: Loopback0
+interface_description: oob management
+vrf_description: management VRF
+vrf_name: default

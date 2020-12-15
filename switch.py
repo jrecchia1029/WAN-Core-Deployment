@@ -1,76 +1,34 @@
 import pyeapi
+from ipam_client.infoblox import Infoblox
+from ipam_client.cvp_ipam import CvpIpam
 from filters.natural_sort import natural_sort
 from jinja2 import Environment, FileSystemLoader
-import json, string, random, re
+import ipaddress, yaml, json, string, random, re, os
+import logging
+
+logger = logging.getLogger('main.switch')
+
+path = os.path.abspath(os.path.dirname(__file__))
+
 
 #Set up templates
-env = Environment(loader=FileSystemLoader('templates'))
+env = Environment(loader=FileSystemLoader('{}/templates'.format(path)))
 env.filters["natural_sort"] = natural_sort
 
-mgmt_values = {
-    "vrf_name": "mgmt",
-    "vrf_description": "management VRF",
-    "interface": "Management1",
-    "interface_description": "oob management"
-}
-
-bgp_values = {
-    "underlay_peer_group": "WANCORE",
-    "overlay_peer_group": "WC-EVPN-TRANSIT",
-    "bgp_defaults":[
-        "maximum-paths 4 ecmp 4",
-        "no bgp default ipv4-unicast"
-    ],
-    "peer_groups": {
-        "WANCORE" :{
-            "description":"WAN Core ipv4 underlay peering group",
-            "bfd": True,
-            "maximum_routes": 12000
-        },
-            "WC-EVPN-TRANSIT":{
-            "description":"WAN Core evpn overlay peering group",
-            "bfd": False,
-            "maximum_routes": 0,
-            "update_source": "Loopback0",
-            "ebgp_multihop": "",
-            "send_coommunity": True
-        }
-    },
-    "core_redistribution_routes":{
-        "connected": {}
-    },
-    "service_redistribution_routes":{
-        "connected": {}
-        # "learned": {}
-    },
-    "service_vrfs":{
-        "maximum_routes": 0
-    },
-    "address_family_evpn": {
-        "peer_groups": {
-            "WC-EVPN-TRANSIT":{
-                "activate": True
-            }
-        }
-    },
-    "address_family_ipv4": {
-        "peer_groups": {
-            "WANCORE":{
-                "activate": True
-            }
-        }
-    }
-}
+#Load Default values
+mgmt_values = yaml.load(open("{}/settings/config_defaults/management.yml".format(path)), Loader=yaml.FullLoader)
+bgp_values = yaml.load(open("{}/settings/config_defaults/bgp.yml".format(path)), Loader=yaml.FullLoader)
 
 class CoreRouter():
     """
     Class to act as an EOS Switch object.  Uses Netmiko (SSH) or jsonrpclib (EAPI) to execute switch functions. 
     """
-    def __init__(self, ip_address=None, hostname=None, username=None, password=None):
+    def __init__(self, ip_address=None, hostname=None, username=None, password=None, serial_number=None):
         self.ip_address = ip_address
         self.username = username
         self.password = password
         self.hostname = hostname
+        self.serial_number = serial_number
         self.core_interfaces = None
         self.site_interfaces = None
         self.loopback0_ip = None
@@ -78,6 +36,7 @@ class CoreRouter():
         self.asn = None
         self.core_bgp_neighbors = None
         self.mgmt_gateway = None
+        self.logger = logging.getLogger("main.switch.CoreRouter")
 
     def __str__(self):
         output = ""
@@ -115,7 +74,7 @@ class CoreRouter():
                 commands.insert(0, "enable")
             response = switch.execute(commands, encoding=encoding)
         except Exception as e:
-            print("Error:", e)
+            self.logger.error(e)
             return None
         else:
             result = response["result"]
@@ -130,6 +89,7 @@ class CoreRouter():
 
         Returns merged config via config session
         """
+        self.logger.debug("Merging configs")
         # print("Merging configs")
         letters_and_digits = string.ascii_letters + string.digits
         session_id = ''.join((random.choice(letters_and_digits) for i in range(10)))
@@ -152,22 +112,37 @@ class CoreRouter():
             return None
 
         merged_config = response[-2]["output"]
-        merged_config = "\n".join(merged_config.split("\n")[10:])
+
+        black_list_lines = ["service routing protocols model ribd\n!\n", "spanning-tree mode mstp\n!\n", "no aaa root\n!\n"]
+        for line in black_list_lines:
+            merged_config = merged_config.replace(line, "")
+
+        merged_config = "\n".join(merged_config.split("\n")[4:])
         cleaned_merged_config = ""
 
+        black_list_lines = ["spanning-tree mode mstp", "no aaa root"]
+
         #Remove empty interface section from merged_config
-        for section in re.split(r'!\n(?=interface)', merged_config):
-            if not re.match(r'^interface\s+Ethernet\d+$', section.strip()):
-                cleaned_merged_config += section + "!\n"
+        for section in re.split(r'\n(?=interface)', merged_config):
+            section = re.sub(r'^interface\s+(Ethernet|Port-Channel|Management|Vlan|Vxlan)\d+\n!', '', section)
+            if section.strip() != "":
+                if section[0] == "\n":
+                    section = section[1:]
+                cleaned_merged_config += section + "\n"
+        
+        #Append last "!" for aesthetic reasons
+        cleaned_merged_config += "!"
 
         #Strip off last 7 characters which are '\n,e,n,d,\n,!,\n'
         return cleaned_merged_config[:-7]
 
     def getManagementInfo(self, routing_details, ipam, ipam_network):
+        self.logger.debug("Getting management info for {}".format(self.hostname))
         self.ip_address = get_management_address_from_ipam(ipam, ipam_network, routing_details["management subnet"], self.hostname)
         self.mgmt_gateway = get_management_gateway(ipam, ipam_network, routing_details["management subnet"])
 
     def getCoreInterfaces(self, core_rtrs):
+        self.logger.debug("Setting core_interfaces for {}".format(self.hostname))
         core_interfaces = {}
         lldp_neighbors = self.getLLDPNeighbors()
         for rtr in core_rtrs:
@@ -180,6 +155,7 @@ class CoreRouter():
         self.core_interfaces = core_interfaces
 
     def getAddressesForCoreFabric(self, routing_details, ipam, ipam_network):
+        self.logger.debug("Getting IP addresses for core fabric for {}".format(self.hostname))
         for interface, details in self.core_interfaces.items():
             connection_info = {
                 "hostname": self.hostname,
@@ -189,14 +165,18 @@ class CoreRouter():
             }
             interface_ip = get_transit_ip_from_ipam(ipam, ipam_network, routing_details["core to core subnet"], connection_info)
             self.core_interfaces[interface]["ip address"] = interface_ip
-        
+
         self.loopback0_ip = get_loopback_ip_from_ipam(ipam, ipam_network, routing_details["loopback0 subnet"], self.hostname)
         self.loopback1_ip = get_loopback_ip_from_ipam(ipam, ipam_network, routing_details["loopback1 subnet"], self.hostname)
-        asn_start = routing_details["asn range"].split("-")[0].strip()
-        asn_end = routing_details["asn range"].split("-")[-1].strip()
+        
+    def getBGPASN(self, routing_details, ipam, ipam_network):
+        self.logger.debug("Getting ASN for {}".format(self.hostname))
+        asn_start = routing_details["core asn range"].split("-")[0].strip()
+        asn_end = routing_details["core asn range"].split("-")[-1].strip()
         self.asn = get_asn_from_ipam(ipam, ipam_network, asn_start, asn_end, self.hostname)
 
     def getCoreBGPNeighborInfo(self, core_rtrs):
+        self.logger.debug("Setting core_bgp_neighbors for {}".format(self.hostname))
         underlay_pg_name = bgp_values["underlay_peer_group"]
         overlay_pg_name = bgp_values["overlay_peer_group"]
         bgp_neighbors = {}
@@ -209,13 +189,14 @@ class CoreRouter():
                             "peer group": underlay_pg_name
                         }
                         break
-                bgp_neighbors[rtr.loopback1_ip.split("/")[0]] = {
+                bgp_neighbors[rtr.loopback0_ip.split("/")[0]] = {
                     "asn": rtr.asn,
                     "peer group": overlay_pg_name
                 }
         self.core_bgp_neighbors = bgp_neighbors
 
     def getSiteInterfaces(self, site_rtrs, ipam, ipam_network):
+        self.logger.debug("Getting site_interfaces for {}".format(self.hostname))
         site_interfaces = {}
         lldp_neighbors = self.getLLDPNeighbors()
         for rtr in site_rtrs:
@@ -230,15 +211,24 @@ class CoreRouter():
                             "subnet": None,
                         }
                     for service in rtr.site.services:
-                        site_interfaces["{}.{}".format(neighbor["port"], service["subinterface vlan"])] = {
-                                "neighbor router": rtr,
-                                "neighbor interface": "{}.{}".format(neighbor["neighborPort"], service["subinterface vlan"]),
-                                "ip address": None,
-                                "neighbor ip address": None,
-                                "vlan":  service["subinterface vlan"],
-                                "vrf": service["vrf"],
-                                "subnet": service["subinterface subnet"]
-                            }
+                        if service["vrf"] == "default":
+                            site_interfaces["{}".format(neighbor["port"])] = {
+                                    "neighbor router": rtr,
+                                    "neighbor interface": "{}".format(neighbor["neighborPort"]),
+                                    "ip address": None,
+                                    "neighbor ip address": None,
+                                    "subnet": service["subinterface subnet"]
+                                }
+                        else:
+                            site_interfaces["{}.{}".format(neighbor["port"], service["subinterface vlan"])] = {
+                                    "neighbor router": rtr,
+                                    "neighbor interface": "{}.{}".format(neighbor["neighborPort"], service["subinterface vlan"]),
+                                    "ip address": None,
+                                    "neighbor ip address": None,
+                                    "vlan":  service["subinterface vlan"],
+                                    "vrf": service["vrf"],
+                                    "subnet": service["subinterface subnet"]
+                                }
         # #Get IP Address for site interfaces
         for interface, details in site_interfaces.items():
             if details["subnet"] is None:
@@ -249,7 +239,7 @@ class CoreRouter():
                 "neighbor hostname": details["neighbor router"].hostname,
                 "neighbor interface": details["neighbor interface"]
             }
-            local_interface_ip = get_transit_ip_from_ipam(ipam, ipam_network, details["subnet"], connection_info)
+            local_interface_ip = get_transit_ip_from_ipam(ipam, ipam_network, details["subnet"], connection_info, subnet_mask=30)
             site_interfaces[interface]["ip address"] = local_interface_ip
             neighbor_connection_info = {
                 "hostname": details["neighbor router"].hostname,
@@ -257,11 +247,14 @@ class CoreRouter():
                 "neighbor hostname": self.hostname,
                 "neighbor interface": interface
             }
-            neighbor_interface_ip = get_transit_ip_from_ipam(ipam, ipam_network, details["subnet"], neighbor_connection_info)
+            neighbor_interface_ip = get_transit_ip_from_ipam(ipam, ipam_network, details["subnet"], neighbor_connection_info, subnet_mask=30)
             site_interfaces[interface]["neighbor ip address"] = neighbor_interface_ip
+
+        self.logger.debug("Setting site_interfaces for {}".format(self.hostname))
         self.site_interfaces = site_interfaces
 
     def getLLDPNeighbors(self):
+        self.logger.debug("Retrieving LLDP neighbors for {}".format(self.hostname))
         return self.send_commands_via_eapi(["show lldp neighbors"])[0]["lldpNeighbors"]
 
     def produceManagementConfig(self):
@@ -269,6 +262,7 @@ class CoreRouter():
         mgmt_vrf = mgmt_values["vrf_name"]
         mgmt_interface = mgmt_values["interface"]
         data = {
+            "hostname": self.hostname,
             "vrfs":{
                 mgmt_vrf:{
                     "description": mgmt_values["vrf_description"],
@@ -296,9 +290,10 @@ class CoreRouter():
             ]
         }
         template = env.get_template('management-configlet.j2')
+        self.logger.info("Rendered management config for {}".format(self.hostname))
         return formatConfig( template.render(data) )
 
-    def produceCoreFabricConfig(self, services):
+    def produceCoreFabricConfig(self, services, routing_details):
         #Format variables for templates
         #Format Service VRFs
         vrfs = {}
@@ -340,9 +335,51 @@ class CoreRouter():
             }
         }
         for service in services:
-            vxlan_interface["Vxlan1"]["vxlan_vni_mappings"]["vrfs"][service["vrf"]] = {
-                "vni": service["vni"]
+            if service["vrf"] != "default":
+                vxlan_interface["Vxlan1"]["vxlan_vni_mappings"]["vrfs"][service["vrf"]] = {
+                    "vni": service["vni"]
+                }
+
+        #Format Prefix lists
+        prefix_lists = {
+             bgp_values["prefix_list_names"]["loopbacks_pl_name"]:{
+                "sequence_numbers":{
+                    10: {
+                        "action": "permit {} eq 32".format(routing_details["loopback0 subnet"])
+                    },
+                    20: {
+                        "action": "permit {} eq 32".format(routing_details["loopback1 subnet"])
+                    }
+                }
+            },
+            bgp_values["prefix_list_names"]["transit_pl_name"]:{
+                "sequence_numbers":{
+                    10: {
+                        "action": "permit {} le 31".format(routing_details["core to core subnet"])
+                    }
+                }
             }
+        }
+        for i, service in enumerate(services):
+            prefix_lists[bgp_values["prefix_list_names"]["transit_pl_name"]]["sequence_numbers"][(i + 2) * 10] = {
+                        "action": "permit {} le 31".format(service["subinterface subnet"]) 
+                    }
+        #Format Route Maps info
+        route_maps = {
+            bgp_values["core_redistribution_routes"]["connected"]["route_map"]:{
+                "sequence_numbers":{
+                    10:{
+                        "type": "permit",
+                        "match": ["ip address prefix-list {}".format(bgp_values["prefix_list_names"]["loopbacks_pl_name"])]
+                    },
+                    20:{
+                        "type": "permit",
+                        "match": ["ip address prefix-list {}".format(bgp_values["prefix_list_names"]["transit_pl_name"])]
+                    }
+                }
+            }
+        }
+
         #Format BGP info
         router_bgp = {
             "as": self.asn,
@@ -361,37 +398,43 @@ class CoreRouter():
                 "remote_as": info["asn"]
             }
         for service in services:
-            router_bgp["vrfs"][ service["vrf"] ] = {
-                "rd": "{}:{}".format(self.loopback0_ip.split("/")[0], service["vni"]),
-                "route_targets":{
-                    "import":{
-                        "evpn": [ "{}:{}".format(service["vni"], service["vni"]) ]
+            if service["vrf"] != "default":
+                router_bgp["vrfs"][ service["vrf"] ] = {
+                    "rd": "{}:{}".format(self.loopback0_ip.split("/")[0], service["vni"]),
+                    "route_targets":{
+                        "import":{
+                            "evpn": [ "{}:{}".format(service["vni"], service["vni"]) ]
+                        },
+                        "export":{
+                            "evpn": [ "{}:{}".format(service["vni"], service["vni"]) ]
+                        }
                     },
-                    "export":{
-                        "evpn": [ "{}:{}".format(service["vni"], service["vni"]) ]
-                    }
-                },
-                "router_id": self.loopback0_ip.split("/")[0],
-                "redistribute_routes": bgp_values["service_redistribution_routes"],
-                "neighbors": {}
-            }
-            for neighbor, info in self.core_bgp_neighbors.items():
-                if info["peer group"] == bgp_values["overlay_peer_group"]:
-                    router_bgp["vrfs"][ service["vrf"] ]["neighbors"][ neighbor ] = {
-                        "remote_as": info["asn"],
-                         #Max routes for service VRF neighbors
-                        "maximum_routes": bgp_values["service_vrfs"]["maximum_routes"]
-                    }
+                    "router_id": self.loopback0_ip.split("/")[0],
+                    "redistribute_routes": bgp_values["service_redistribution_routes"],
+                    "neighbors": {}
+                }
+                # for neighbor, info in self.core_bgp_neighbors.items():
+                #     if info["peer group"] == bgp_values["overlay_peer_group"]:
+                #         router_bgp["vrfs"][ service["vrf"] ]["neighbors"][ neighbor ] = {
+                #             "remote_as": info["asn"],
+                #              #Max routes for service VRF neighbors
+                #             "maximum_routes": bgp_values["service_vrfs"]["maximum_routes"]
+                #         }
         
         data = {
+            "service_routing_protocols_model": "multi-agent",
             "vrfs": vrfs,
             "ethernet_interfaces": ethernet_interfaces,
             "loopback_interfaces": loopback_interfaces,
             "vxlan_tunnel_interface": vxlan_interface,
             "ip_routing": True,
+            "prefix_lists": prefix_lists,
+            "route_maps": route_maps,
             "router_bgp": router_bgp
         }
         template = env.get_template('core-fabric-configlet.j2')
+        # print(formatConfig( template.render(data) ))
+        self.logger.info("Rendered core-to-core config for {}".format(self.hostname))
         return formatConfig( template.render(data) )
     
     def produceCoreToSiteConfig(self):
@@ -411,23 +454,29 @@ class CoreRouter():
         #Format BGP & VRF variables 
         router_bgp = {
             "as": self.asn,
+            "neighbors": {},
             "vrfs": {}
         }
         for interface, details in self.site_interfaces.items():
-            for service in details["neighbor router"].site.services:
-                if details["neighbor ip address"] is not None:
-                    #If no service vrf exists in routger_bgp["vrfs"] details yet create one 
-                    if service not in list(router_bgp["vrfs"].keys()):
-                        router_bgp["vrfs"][ service["vrf"] ] = {
+            if details["neighbor ip address"] is not None:
+                if "vrf" not in details.keys():
+                    router_bgp["neighbors"][details["neighbor ip address"].split("/")[0]] = {
+                        "remote_as": details["neighbor router"].site.asn,
+                        "peer_group": bgp_values["core_to_site_peer_group"]
+                    }
+                else:
+                    #If no service vrf exists in routger_bgp["vrfs"] details yet create one
+                    if details["vrf"] not in list(router_bgp["vrfs"].keys()):
+                        router_bgp["vrfs"][ details["vrf"] ] = {
                             "route_targets": {},
                             "neighbors": {},
-                            "description": service["description"],
                             "ip_routing": True
                         }
-                    router_bgp["vrfs"][ service["vrf"] ]["neighbors"][details["neighbor ip address"].split("/")[0]] = {
+                    router_bgp["vrfs"][ details["vrf"] ]["neighbors"][details["neighbor ip address"].split("/")[0]] = {
                         "remote_as": details["neighbor router"].site.asn,
-                         #Max routes for service VRF neighbors
-                         "maximum_routes": bgp_values["service_vrfs"]["maximum_routes"]
+                        "peer_group": bgp_values["core_to_site_peer_group"],
+                        #Max routes for service VRF neighbors
+                        "maximum_routes": bgp_values["service_vrfs"]["maximum_routes"]
                     }
         data = {
             "ip_routing": True,
@@ -436,9 +485,10 @@ class CoreRouter():
             "router_bgp": router_bgp
         }
         template = env.get_template('core-to-site-configlet.j2')
+        self.logger.info("Rendered core-to-site config for {}".format(self.hostname))
         return formatConfig( template.render(data) )
 
-def get_transit_ip_from_ipam(cvp_ipam, view, transit_block, connection):
+def get_transit_ip_from_ipam(ipam_client, view, transit_block, connection, subnet_mask=31):
     '''
     Gets the Transit IP address from CVP IPAM for a device's interface based on connection details.
     If the IP Address for the Device's Interface does not exist in IPAM, it gets the next available from a dedicated subnet
@@ -453,29 +503,39 @@ def get_transit_ip_from_ipam(cvp_ipam, view, transit_block, connection):
             "neighbor interface": neighbor_interface
         }
     '''
+    logger.debug("Getting IP address from {} network container for {}:{}".format(transit_block, connection["hostname"], connection["local interface"]))
     child_subnet_re = "{}:{}".format(connection["hostname"], connection["local interface"]) #endpointA:interfaceA
     child_subnet_re = child_subnet_re.replace("-", "_") #CVP IPAM converts "-" to "_"
     allocation_name = child_subnet_re
     #Check to see if child subnet exists
-    subnets = cvp_ipam.find_subnetworks_by_regex(view, transit_block, child_subnet_re)
-    if len(subnets) == 1:
-        subnet = subnets[0]["range"]
+    subnets = ipam_client.find_subnetworks_by_regex(view, transit_block, child_subnet_re)
+    if len(subnets) > 0:
+        if len(subnets) != 1:
+            logger.warning("Multiple subnets found for regex '{}' in network container {}".format(allocation_name, transit_block))
+        else:
+            logger.debug("Found existing subnet {} from network container {} for {}".format(subnets[0], transit_block, allocation_name))
+        subnet = subnets[0]
         #Check to see if address exists
-        ip_address = cvp_ipam.get_host_ipv4_address(view, subnet, allocation_name)
+        ip_address = ipam_client.get_host_ipv4_address(view, subnet, allocation_name)
         if ip_address is not None:
-            return ip_address + "/31"
+            logger.debug("Found existing IP address ({}) for {} in {}".format(ip_address, allocation_name, subnet))
+            return ip_address + "/" + str(subnet_mask)
     else:
         #Create child_subnet name
+        logger.debug("Could not find an existing subnet from network container {} for {}".format(transit_block, allocation_name))
         child_subnet_name = "{}:{}::{}:{}".format(connection["hostname"], connection["local interface"], connection["neighbor hostname"], connection["neighbor interface"]) #endpointA:interfaceA::endpointB:interfaceB
         #Create new child subnet
-        subnet = cvp_ipam.allocate_child_subnet(view, transit_block, child_subnet_name, 31)
+        subnet = ipam_client.allocate_child_subnet(view, transit_block, child_subnet_name, subnet_mask)
+        logger.debug("Created subnet {} from {} for {}".format(subnet, transit_block, allocation_name))
 
     #Allocate next available IP address for connection-interface on that subnet
-    next_allocation = cvp_ipam.allocate_next_ip(view, subnet, allocation_name)
+    logger.debug("Allocating IP Address for {} from {}".format(allocation_name, subnet))
+    next_allocation = ipam_client.allocate_next_ip(view, subnet, allocation_name)
+    logger.debug("Allocated {} for {} in subnet {}".format(next_allocation, allocation_name, subnet))
 
-    return cvp_ipam.get_host_ipv4_address(view, subnet, allocation_name) + "/31"
+    return ipam_client.get_host_ipv4_address(view, subnet, allocation_name) + "/" +str(subnet_mask)
 
-def get_loopback_ip_from_ipam(cvp_ipam, view, loopback_range, hostname):
+def get_loopback_ip_from_ipam(ipam_client, view, loopback_range, hostname):
     '''
     Gets the Loopback IP address from CVP IPAM for a device's Loopback interface based on the loopback range.
     If the IP Address for the Device's Loopback Interface does not exist in IPAM, it gets the next available from the loopback range
@@ -484,73 +544,90 @@ def get_loopback_ip_from_ipam(cvp_ipam, view, loopback_range, hostname):
     loopback_range: cidr notation
     hostname: hostname of switch
     '''
+    logger.debug("Getting IP address from {} network for {}".format(loopback_range, hostname))
     #Check to see if host already has an IP address assigned to loopback
-    ip_address = cvp_ipam.get_host_ipv4_address(view, loopback_range, hostname)
+    ip_address = ipam_client.get_host_ipv4_address(view, loopback_range, hostname)
     if ip_address is not None:
+        logger.debug("Found existing IP address ({}) for {} in {}".format(ip_address, hostname, loopback_range))
         return ip_address + "/32"
     #Allocate next available IP address for connection-interface on that subnet
-    next_allocation = cvp_ipam.allocate_next_ip(view, loopback_range, hostname)
-    return cvp_ipam.get_host_ipv4_address(view, loopback_range, hostname) + "/32"
+    logger.debug("Allocating IP Address for {} from {}".format(hostname, loopback_range))
+    next_allocation = ipam_client.allocate_next_ip(view, loopback_range, hostname)
+    logger.debug("Allocated {} for {} in subnet {}".format(next_allocation, hostname, loopback_range))
+    return ipam_client.get_host_ipv4_address(view, loopback_range, hostname) + "/32"
 
-def get_management_address_from_ipam(cvp_ipam, view, management_range, hostname):
+def get_management_address_from_ipam(ipam_client, view, management_range, hostname):
     '''
     Gets the Management IP address from CVP IPAM for a device's Management interface based on the management range.
     If the IP Address for the Device's Management Interface does not exist in IPAM, it gets the next available from the management range
 
-        cvp_ipam (ipam): CVP IPAM client
+        ipam_client (ipam): CVP IPAM client or Infoblox IPAM
         view (str): CVP IPAM network 
         management_range (str): cidr notation
         hostname (str): hostname of switch
     '''
     netmask = management_range.split("/")[-1]
-    #Check to see if host already has an IP address assigned to 
-    ip_address = cvp_ipam.get_host_ipv4_address(view, management_range, hostname)
+    #Check to see if host already has an IP address assigned to
+    ip_address = ipam_client.get_host_ipv4_address(view, management_range, hostname)
     if ip_address is not None:
+        logger.debug("Found existing IP Address for {}".format(hostname))
         return "{}/{}".format(ip_address, netmask)
     #Allocate next available IP address for connection-interface on that subnet
-    next_allocation = cvp_ipam.allocate_next_ip(view, management_range, hostname)
-    return "{}/{}".format(cvp_ipam.get_host_ipv4_address(view, management_range, hostname), netmask)
+    logger.debug("Could not find an existing IP Address for {}".format(hostname))
+    next_allocation = ipam_client.allocate_next_ip(view, management_range, hostname)
+    logger.debug("Allocated new IP address ({}) for {} from {}".format(next_allocation, hostname, management_range))
 
-def get_management_gateway(cvp_ipam, view, management_range):
+    return "{}/{}".format(ipam_client.get_host_ipv4_address(view, management_range, hostname), netmask)
+
+def get_management_gateway(ipam_client, view, management_range):
     '''
     Gets the Management gateway IP from management subnet
 
-        cvp_ipam (ipam): CVP IPAM client
+        ipam_client (ipam): CVP IPAM client
         view (str): CVP IPAM network 
         management_range (str): cidr notation
     '''
-    mgmt_network = cvp_ipam._get_pool(view, management_range)
-    if mgmt_network is not None:
-        return mgmt_network["gateway"]
+    logger.debug("Retrieving default gateway for {}".format(management_range))
+    gateway = ipam_client.get_network_gateway(view, management_range)
+    return gateway
 
-def get_asn_from_ipam(cvp_ipam, view, asn_start, asn_end, hostname):
+def get_asn_from_ipam(cvp_ipam_client, view, asn_start, asn_end, hostname):
     """[summary]
 
     Args:
-        cvp_ipam (ipam): CVP IPAM client
+        ipam_client (ipam): CVP IPAM client - Only takes CVP IPAM client
         view (str): CVP IPAM network 
         asn_range (str): asn range to get allocations from
         hostname (str): hostname of switch
     """
+    logger.debug("Getting BGP ASN for {}".format(hostname))
+    #Make sure IPAM client is CVP IPAM type
+    if type(cvp_ipam_client) is not CvpIpam:
+        return None
+
     #Find reservation by asn range
     reservation = None
-    reservations = cvp_ipam.get_asn_reservations(view)
+    reservations = cvp_ipam_client.get_asn_reservations(view)
     for rezzy in reservations:
         if rezzy["start"] == asn_start and rezzy["end"] == asn_end:
             reservation = rezzy
             break
     #If ASN range doesn't exist return None
     if reservation is None:
+        logger.error("Could not find an ASN range for {} in IPAM".format(hostname))
         return None
+    logger.debug("Retrieved ASN reservation for {}".format(hostname))
     #For allocation in allocations
     for allocation in reservation["allocations"]:
         #If the hostname is found in the description of the allocation within the reservation
         if hostname in [ x.strip() for x in allocation["description"].split(":") ]:
             #Return the ASN value
+            logger.debug("Found existing allocation (AS {}) for {}".format(allocation["value"], hostname))
             return allocation["value"]
     #Allocate the next available asn_value
-    response = cvp_ipam._get_next_allocation(reservation["id"], hostname)
-
+    logger.debug("Allocating next available ASN from {}".format(reservation["id"]))
+    response = cvp_ipam_client._get_next_allocation(reservation["id"], hostname)
+    logger.debug("Allocated AS {} for {}".format(response['allocation']['value'], hostname))
     return response['allocation']['value']
 
 def formatConfig(config):

@@ -34,7 +34,7 @@ IPAM Python Client Library Base Class
 """
 from ipam_client.cvp_ipam import CvpIpam
 from ipam_client.bluecat import BlueCat
-# from ipam_client.infoblox import Infoblox
+from ipam_client.infoblox import Infoblox
 
 def ipam(ipam_name):
     """

@@ -1,7 +1,11 @@
 import xlrd
 import json
+import logging
 
-def parseCoreConnections(workbook):
+logger = logging.getLogger("main.core_parser")
+
+def parseCoreRouterDetails(workbook):
+    logger.debug("Parsing core router details")
     wan_links = {}
     try:
         workbook = xlrd.open_workbook(workbook)
@@ -23,7 +27,7 @@ def parseCoreConnections(workbook):
             core_rtr_links[first_row[col]]=worksheet.cell_value(row,col)
         try:
             name = core_rtr_links["Name"].strip()
-            wan_links[name] = {}
+            wan_links[name] = {"serial number": core_rtr_links["Serial Number"].strip()}
             # if core_rtr_links["Interface to Halsey"].strip() != "":
             #     wan_links[name][core_rtr_links["Interface to Halsey"].strip()] = {
             #         "neighbor hostname": "Halsey"
@@ -48,18 +52,19 @@ def parseCoreConnections(workbook):
             return None
             
     #Add remote interface details to link
-    for rtr, link_info in wan_links.items():
-        for link, info in link_info.items():
-            for r_link, rinfo in wan_links[info["neighbor hostname"]].items():
-                if rinfo["neighbor hostname"] == rtr:
-                    wan_links[info["neighbor hostname"]][r_link] = {
-                        "neighbor hostname": rtr,
-                        "neighbor interface": link
-                    }
+    # for rtr, link_info in wan_links.items():
+    #     for link, info in link_info.items():
+    #         for r_link, rinfo in wan_links[info["neighbor hostname"]].items():
+    #             if rinfo["neighbor hostname"] == rtr:
+    #                 wan_links[info["neighbor hostname"]][r_link] = {
+    #                     "neighbor hostname": rtr,
+    #                     "neighbor interface": link
+    #                 }
 
     return wan_links
 
 def parseRoutingDetails(workbook):
+    logger.debug("Parsing routing details")
     #Get Loopback0, Loopback1, and ASN ranges defined in spreadsheet
     try:
         workbook = xlrd.open_workbook(workbook)
@@ -89,7 +94,7 @@ def parseRoutingDetails(workbook):
         "core to core subnet": core_to_core_transit_block,
         "loopback0 subnet": lo0_range,
         "loopback1 subnet": lo1_range,
-        "asn range": asn_range
+        "core asn range": asn_range
     }
     return routing_details
 

@@ -431,7 +431,7 @@ class CvpIpam(object):
             return matched_subnets
         for subnet in subnets:
             if re.search(regex, subnet["name"]):
-                matched_subnets.append(subnet)
+                matched_subnets.append(subnet["range"])
         return matched_subnets
 
     def _get_host_ip_from_pool(self, pool, hostname):

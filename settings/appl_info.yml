@@ -1,0 +1,8 @@
+cvp:
+  primary: 10.20.30.185
+cvp_ipam:
+  ip_address: 10.20.30.185
+  network: demo
+infoblox:
+  ip_address: 10.20.30.180
+  network: default

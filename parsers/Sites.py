@@ -1,7 +1,11 @@
 import xlrd
 import json
+import logging
+
+logger = logging.getLogger("main.service_parser")
 
 def parseSites(workbook):
+    logger.debug("Parsing sites")
     sites = []
     site_fields = ["Name", "ASN", "Services"]
     try:
@@ -37,6 +41,7 @@ def parseSites(workbook):
     return sites
 
 def parseSiteRouters(workbook):
+    logger.debug("Parsing site routers")
     site_rtrs = []
     try:
         workbook = xlrd.open_workbook(workbook)

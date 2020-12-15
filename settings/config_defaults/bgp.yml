@@ -1,0 +1,47 @@
+address_family_evpn:
+  peer_groups:
+    WC-EVPN-TRANSIT:
+      activate: true
+address_family_ipv4:
+  peer_groups:
+    Core-To-Site:
+      activate: true
+    WANCORE:
+      activate: true
+bgp_defaults:
+- maximum-paths 4 ecmp 4
+- no bgp default ipv4-unicast
+core_redistribution_routes:
+  connected:
+    route_map: RM-CONN-2-BGP
+core_to_site_peer_group: Core-To-Site
+overlay_peer_group: WC-EVPN-TRANSIT
+peer_groups:
+  Core-To-Site:
+    bfd: true
+    description: Underlay to CEs
+    maximum_routes: 12000
+    password: Wpu40zmvmGch4am4DjTbsQ==
+  WANCORE:
+    bfd: true
+    description: WAN Core ipv4 underlay peering group
+    maximum_routes: 12000
+    password: Rfpjs767YXSveBVW+RrNQA==
+  WC-EVPN-TRANSIT:
+    bfd: false
+    description: WAN Core evpn overlay peering group
+    ebgp_multihop: ''
+    maximum_routes: 0
+    password: kCFsSgJTNAURN+wu76ye+g==
+    send_coommunity: true
+    update_source: Loopback0
+prefix_list_names:
+  loopbacks_pl_name: PL-Loopbacks
+  transit_pl_name: PL-P2P-Underlay
+route_map_names:
+  bgp: RM-CONN-2-BGP
+service_redistribution_routes:
+  connected: null
+service_vrfs:
+  maximum_routes: 0
+underlay_peer_group: WANCORE

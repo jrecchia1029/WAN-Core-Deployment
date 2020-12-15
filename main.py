@@ -1,32 +1,54 @@
 import json, yaml, os, glob
 from cvprac.cvp_client import CvpClient
 from cvprac.cvp_client_errors import CvpClientError
-from parsers.Core import parseCoreConnections, parseRoutingDetails
+from parsers.Core import parseCoreRouterDetails, parseRoutingDetails
 from parsers.Services import parseServices
 from parsers.Sites import parseSites, parseSiteRouters
 from ipam_client.ipam import ipam
+from ipam_client.infoblox import Infoblox
+from ipam_client.cvp_ipam import CvpIpam
 from switch import CoreRouter
 from sites import Site, SiteRouter
 from datetime import datetime
 import cherrypy
 import xlrd, xlwt
-
 import logging
-logging.basicConfig(level=logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-handler = logging.FileHandler('Deployment.log', mode='w+')
-handler.setLevel(logging.INFO)
-handler.setFormatter(formatter)
-logger = logging.getLogger(__name__)
-logger.addHandler(handler)
+
+path = os.path.abspath(os.path.dirname(__file__))
+
+# create logger with 'spam_application'
+logger = logging.getLogger('main')
+logger.setLevel(logging.DEBUG)
+# create file handler which logs even debug messages
+# fh = logging.FileHandler('{}/logs/Deployment-{}.log'.format(path, int(datetime.now().timestamp())), 'w+')
+fh = logging.FileHandler('{}/logs/Deployment.log'.format(path, int(datetime.now().timestamp())), 'w+')
+fh.setLevel(logging.DEBUG)
+# create console handler with a higher log level
+ch = logging.StreamHandler()
+ch.setLevel(logging.ERROR)
+# create formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+fh.setFormatter(formatter)
+ch.setFormatter(formatter)
+# add the handlers to the logger
+logger.addHandler(fh)
+logger.addHandler(ch)
 
 config = {
-  'global' : {
-    'server.socket_host' : '127.0.0.1',
-    'server.socket_port' : 8080,
-    'server.thread_pool' : 8,
-    'server.ssl_module' : 'builtin'
-  }
+    'global' : {
+        'server.socket_host' : '127.0.0.1',
+        'server.socket_port' : 8080,
+        'server.thread_pool' : 4,
+        'server.ssl_module' : 'builtin'
+    },
+    '/': {
+        'tools.sessions.on': True,
+        'tools.staticdir.root': os.path.abspath(os.getcwd())
+    },
+    '/static': {
+        'tools.staticdir.on': True,
+        'tools.staticdir.dir': './static'
+    }
 }
 
 username, password = None, None
@@ -34,7 +56,7 @@ username, password = None, None
 class Handler(object):
     @cherrypy.expose
     def index(self):
-        f = open("index.html", "r")
+        f = open("{}/index.html".format(path), "r")
         return f.read()
     
     @cherrypy.expose
@@ -44,22 +66,33 @@ class Handler(object):
 
         result = {"operation": "request", "result": "success"}
         input_json = cherrypy.request.json
-        print("INPUT JSON")
-        print(json.dumps(input_json, indent=2))
+        # print("INPUT JSON")
+        # print(json.dumps(input_json, indent=2))
         run_script(**input_json)
         return result
     
     @cherrypy.expose
     @cherrypy.tools.json_out()
     def log(self):
-        f = open("Deployment.log")
+        # list_of_files = glob.glob('{}/logs/Deployment*.log'.format(path)) # * means all if need specific format then *.csv
+        # if len(list_of_files) > 5:
+        #     oldest_file = min(list_of_files, key=os.path.getctime)
+        #     os.remove(oldest_file)
+
+        # list_of_files = glob.glob('{}/logs/Deployment*.log'.format(path)) # * means all if need specific format then *.csv
+        # latest_log_file = max(list_of_files, key=os.path.getctime)
+
+        latest_log_file = "{}/logs/Deployment.log".format(path)
+
+        f = open(latest_log_file)
         text = f.read()
         f.close()
+
         return json.dumps(text)
 
     @cherrypy.expose
     def readfile(self):
-        list_of_files = glob.glob('./workbooks/workbook*.xls*') # * means all if need specific format then *.csv
+        list_of_files = glob.glob('{}/workbooks/workbook*.xls*'.format(path)) # * means all if need specific format then *.csv
         latest_file = max(list_of_files, key=os.path.getctime)
 
         with xlrd.open_workbook(latest_file) as f:    
@@ -96,10 +129,10 @@ class Handler(object):
                 for c, v in enumerate(row):
                     ws.write(r,c,v)
 
-        excel_file_name = "./workbooks/workbook.{}.xls".format(int(datetime.now().timestamp()))
+        excel_file_name = "{}/workbooks/workbook.{}.xls".format(path, int(datetime.now().timestamp()))
         wb.save(excel_file_name)
 
-        list_of_files = glob.glob('./workbooks/workbook.*.xls*')
+        list_of_files = glob.glob('{}/workbooks/workbook.*.xls*'.format(path))
         if len(list_of_files) > 5:
             oldest_file = min(list_of_files, key=os.path.getctime)
             os.remove(oldest_file)
@@ -113,7 +146,7 @@ class Handler(object):
         result = {"operation": "request", "result": "success"}
 
         size = 0
-        excel_file_name = "./workbooks/workbook.{}.xls".format(int(datetime.now().timestamp()))
+        excel_file_name = "{}/workbooks/workbook.{}.xls".format(path, int(datetime.now().timestamp()))
         f = open(excel_file_name, "wb")
         
         while True:
@@ -126,6 +159,48 @@ class Handler(object):
         # Responses are serialized to JSON (because of the json_out decorator)
         return result
 
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def saveServerInfo(self):        
+        result = {"operation": "request", "result": "success"}
+        input_json = cherrypy.request.json
+        with open("{}/settings/appl_info.yml".format(path), 'w') as filename:
+            yaml.dump(input_json, filename)
+        return result
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def readServerInfo(self):
+        return json.dumps(yaml.load(open("{}/settings/appl_info.yml".format(path)), Loader=yaml.FullLoader))
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def getConfigSettings(self):
+        config_settings = {}
+        config_settings["bgp"] = yaml.load(open("{}/settings/config_defaults/bgp.yml".format(path)), Loader=yaml.FullLoader)
+        config_settings["management"] = yaml.load(open("{}/settings/config_defaults/management.yml".format(path)), Loader=yaml.FullLoader)
+        return json.dumps(config_settings)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def saveConfigSettings(self):
+        result = {"operation": "request", "result": "success"}
+        input_json = cherrypy.request.json
+        bgp_config = input_json["bgp"]
+        management_config = input_json["management"]
+
+        with open("{}/settings/config_defaults/bgp.yml".format(path), 'w') as filename:
+            yaml.dump(bgp_config, filename)
+        with open("{}/settings/config_defaults/management.yml".format(path), 'w') as filename:
+            yaml.dump(management_config, filename)
+
+        return result
+        
+        
 def printConfiglet(configlet_dictionary):
     print("_"*50)
     print(configlet_dictionary["name"])
@@ -133,16 +208,39 @@ def printConfiglet(configlet_dictionary):
     print(configlet_dictionary["config"])
     print("-"*50, "\n")
 
+def create_main_networks_in_infoblox(ib_ipam_client, ib_ipam_view, routing_details):
+    ib_types = {
+    "management subnet":"network",
+    "core to core subnet": "network_container",
+    "loopback0 subnet": "network",
+    "loopback1 subnet": "network",
+    "core asn range": None,
+    }
+    logger.info("Creating networks if they do not already exist in IPAM")
+    for network_name, subnet in routing_details.items():
+        if ib_types[network_name] is not None and ib_types[network_name] == "network":
+            logger.debug("Creating {} network in Infoblox IPAM".format(network_name))
+            ib_ipam_client.create_network(ib_ipam_view, subnet)
+        elif ib_types[network_name] is not None and ib_types[network_name] == "network_container":
+            logger.debug("Creating {} network container in Infoblox IPAM".format(network_name))
+            ib_ipam_client.create_network_container(ib_ipam_view, subnet)
+
+def create_service_subnets_in_infoblox(ib_ipam_client, ib_ipam_view, services):
+    logger.info("Creating service network containers if they do not already exist in IPAM")
+    for service in services:
+        logger.debug("Creating {} subnetwork network container in Infoblox IPAM".format(service["vrf"]))
+        ib_ipam_client.create_network_container(ib_ipam_view, service["subinterface subnet"])
+
 def getCoreRouterInfoFromCVP(cvp, core_rtrs):
     cvp_core_rtr_info = {}
     devices = cvp.api.get_inventory()
     for device in devices:
         for core_rtr in core_rtrs:
-            if device["hostname"] == core_rtr.hostname:
-                cvp_core_rtr_info[device["hostname"]] = device
+            if device["serialNumber"] == core_rtr.serial_number:
+                cvp_core_rtr_info[device["serialNumber"]] = device
     return cvp_core_rtr_info
 
-def updateConfigletInCVP(cvp, configlet_name, config, core_rtr=None):
+def updateConfigletInCVP(cvp, configlet_name, config, core_rtr=None, merge=True):
     """[summary]
 
     Args:
@@ -153,6 +251,7 @@ def updateConfigletInCVP(cvp, configlet_name, config, core_rtr=None):
     
     Returns: The configlet object from CVP
     """
+    logger.info("Updating {} in CVP".format(configlet_name))
     try:
         configlet = cvp.api.get_configlet_by_name(configlet_name)
     except CvpClientError as e:
@@ -160,27 +259,29 @@ def updateConfigletInCVP(cvp, configlet_name, config, core_rtr=None):
     if configlet is not None:
         #Merge configlets
         existing_config = configlet["config"]
-        if core_rtr is not None:
+        if core_rtr is not None and merge == True:
             try:
+                logger.debug("Merging new config with existing configlet")
                 config = core_rtr.mergeConfigs([existing_config, config])
+                logger.debug("Successfully merged new config with existing configlet for {}".format(configlet_name))
             except:
-                print("Error merging configuration for {}".format(configlet_name))
-                return
+                logger.debug("Error merging configuration for {}".format(configlet_name))
+                return            
         try:
             update_status = cvp.api.update_configlet(config, configlet["key"], configlet_name)
         except CvpClientError as e:
-            print(e)
+            logger.error(e)
             return
     else:
         try:
             configlet_key = cvp.api.add_configlet(configlet_name, config)
         except CvpClientError as e:
-            print(e)
+            logger.error(e)
             return
-
+    logger.debug("Successfully updated {} in CVP".format(configlet_name))
     return cvp.api.get_configlet_by_name(configlet_name)
 
-def configureDeviceWithCVP(cvp, device_info, configlets_to_apply, apply=False, container=None):
+def configureDeviceWithCVP(cvp, device_info, configlets_to_apply, apply=False, container=None, overwrite_configlets=False):
     """[summary]
 
     Args:
@@ -191,23 +292,26 @@ def configureDeviceWithCVP(cvp, device_info, configlets_to_apply, apply=False, c
 
     Returns: list of task Ids if there are any else None
     """
+    logger.info("Updating config for {} in CVP".format(device_info["hostname"]))
     global username, password
     core_rtr = CoreRouter(ip_address=device_info["ipAddress"], username=username, password=password) if device_info is not None else None
     updated_configlets = []
     for configlet in configlets_to_apply:
-        updated_configlet = updateConfigletInCVP(cvp, configlet["name"], configlet["config"], core_rtr=core_rtr)
+        updated_configlet = updateConfigletInCVP(cvp, configlet["name"], configlet["config"], core_rtr=core_rtr, merge=not(overwrite_configlets))
         if updated_configlet is not None:
             updated_configlets.append(updated_configlet)
         else:
-            print("Error updating {} in CVP".format(configlet["name"]))
-    
+            logger.error("Error updating {} in CVP".format(configlet["name"]))
     if apply == True:
+        logger.debug("Applying configs")
         if device_info is None:
-            print("Unable to find {} in CVP inventory".format(device.hostname))
+            logger.error("Unable to find {} in CVP inventory".format(device.hostname))
             return
         if container is not None:
-            resp = cvp.api.deploy_device(device_info, container, configlets_to_apply=updated_configlets)
+            logger.debug("Deploying {}".format(device_info["hostname"]))
+            resp = cvp.api.deploy_device(device_info, container, configlets=updated_configlets)
         else:
+            logger.debug("Modifying configlets for {}".format(device_info["hostname"]))
             resp = cvp.api.apply_configlets_to_device("Applied via API", device_info, updated_configlets)
         
         if "taskIds" in resp["data"].keys():
@@ -246,39 +350,32 @@ def getSiteRouters(workbook):
             print("Could not find a {} in sites for {}".format(rtr["Site"], rtr["Name"]))
     return site_routers
 
-def getCoreRouters(workbook, ipam, ipam_network):
+def getCoreRouters(workbook, cvp_ipam, cvp_ipam_network, ib_ipam=None, ib_ipam_network=None):
+    logger.info("Gettting Core Router details")
     global username, password
     core_routers = []
     #Get all connections between WAN Core routers
-    wan_core_connections = parseCoreConnections(workbook)  
+    core_rtr_details = parseCoreRouterDetails(workbook)
     routing_details = parseRoutingDetails(workbook)
 
-    #Parse From Spreadsheet
-    # for hostname in wan_core_connections.keys():
-    #     rtr = CoreRouter(hostname=hostname, username=username, password=password)
-    #     rtr.getManagementInfo(routing_details["management subnet"])
-    #     rtr.core_interfaces = wan_core_connections[hostname]
-    #     rtr.getAddressesForCoreFabric(routing_details, ipam, ipam_network)
-    #     core_routers.append(rtr)
-
-    #Get Info From LLDP Neighbors
-    hostnames = list(wan_core_connections.keys())
-    for hostname in hostnames:
-        rtr = CoreRouter(hostname=hostname, username=username, password=password)
-        rtr.getManagementInfo(routing_details, ipam, ipam_network)        
+    #Create Core Router object and Update Management Info
+    for hostname, info in core_rtr_details.items():
+        rtr = CoreRouter(hostname=hostname, username=username, password=password, serial_number=info["serial number"])
+        rtr.getManagementInfo(routing_details, ib_ipam, ib_ipam_network) if ib_ipam and ib_ipam_network is not None else rtr.getManagementInfo(routing_details, cvp_ipam, cvp_ipam_network)
         core_routers.append(rtr)
 
     #Update BGP Neighbor Info
+    logger.info("Retrieving core router fabric details")
     for rtr in core_routers:
         rtr.getCoreInterfaces(core_routers)
-        rtr.getAddressesForCoreFabric(routing_details, ipam, ipam_network)
-        
+        rtr.getAddressesForCoreFabric(routing_details, ib_ipam, ib_ipam_network) if ib_ipam and ib_ipam_network is not None else rtr.getAddressesForCoreFabric(routing_details, cvp_ipam, cvp_ipam_network)    
+        rtr.getBGPASN(routing_details, cvp_ipam, cvp_ipam_network)
     for rtr in core_routers:
         rtr.getCoreBGPNeighborInfo(core_routers)
-
+        
     return core_routers
 
-def configureCoreFabric(core_rtrs, services, cvp_client=None, include_mgmt=False):
+def configureManagementConfig(core_rtrs, cvp_client=None, container=None):
     #Get Core Router Device Dictionary from CVP 
     if cvp_client is not None:
         cvp_core_rtr_info = getCoreRouterInfoFromCVP(cvp_client, core_rtrs)
@@ -288,15 +385,30 @@ def configureCoreFabric(core_rtrs, services, cvp_client=None, include_mgmt=False
         #Create list of configlets to apply
         configlets_to_apply = []
 
-        if include_mgmt == True:
-            #Create management configuration
-            mgmt_config = rtr.produceManagementConfig()
-            configlets_to_apply.append({
-                "name": "{} Management".format(rtr.hostname),
-                "config": mgmt_config
-                })
+        #Create management configuration
+        mgmt_config = rtr.produceManagementConfig()
+        configlets_to_apply.append({
+            "name": "{} Management".format(rtr.hostname),
+            "config": mgmt_config
+            })
+
+        # Create/Update Configlets in CVP, Apply to Device, and Move device to proper container if necessary
+        if cvp_client is not None:
+            device_dict = None if rtr.serial_number not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.serial_number]
+            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=container, overwrite_configlets=True)
+
+def configureCoreFabric(core_rtrs, services, routing_details, cvp_client=None, container=None):
+    #Get Core Router Device Dictionary from CVP 
+    if cvp_client is not None:
+        cvp_core_rtr_info = getCoreRouterInfoFromCVP(cvp_client, core_rtrs)
+
+    #Create configuration for WAN Core 
+    for rtr in core_rtrs:
+        #Create list of configlets to apply
+        configlets_to_apply = []
+
         #Create Core Fabric Config
-        core_config = rtr.produceCoreFabricConfig(services)
+        core_config = rtr.produceCoreFabricConfig(services, routing_details)
         configlets_to_apply.append({
             "name": "{} Core".format(rtr.hostname),
             "config": core_config
@@ -304,13 +416,12 @@ def configureCoreFabric(core_rtrs, services, cvp_client=None, include_mgmt=False
 
         # Create/Update Configlets in CVP, Apply to Device, and Move device to proper container if necessary
         if cvp_client is not None:
-            device_dict = None if rtr.hostname not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.hostname]
-            device_dict = {"ipAddress": rtr.ip_address}
-            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=False, container=None)
+            device_dict = None if rtr.serial_number not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.serial_number]
+            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=container)
 
         #Print configlets
-        for configlet in configlets_to_apply:
-            printConfiglet(configlet)
+        # for configlet in configlets_to_apply:
+        #     printConfiglet(configlet)
 
     return
  
@@ -333,9 +444,8 @@ def addServices(core_rtrs, services, cvp_client=None):
 
         # Create/Update Configlets in CVP, Apply to Device, and Move device to proper container if necessary
         if cvp_client is not None:
-            device_dict = None if rtr.hostname not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.hostname]
-            device_dict = {"ipAddress": rtr.ip_address}
-            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=False, container=None) 
+            device_dict = None if rtr.serial_number not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.serial_number]
+            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=None) 
 
         #Print Configlets
         # for configlet in configlets_to_apply:
@@ -365,9 +475,8 @@ def addSiteRouterConnections(core_rtrs, site_rtrs, ipam, ipam_network, cvp_clien
 
         # Create/Update Configlets in CVP, Apply to Device, and Move device to proper container if necessary
         if cvp_client is not None:
-            device_dict = None if rtr.hostname not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.hostname]
-            device_dict = {"ipAddress": rtr.ip_address}
-            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=False, container=None) 
+            device_dict = None if rtr.serial_number not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.serial_number]
+            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=None) 
 
         #Print Configlets
         # for configlet in configlets_to_apply:
@@ -377,61 +486,183 @@ def addSiteRouterConnections(core_rtrs, site_rtrs, ipam, ipam_network, cvp_clien
 def addServicesToSite(core_rtrs, site_rtrs, ipam, ipam_network, cvp_client=None):
     return addSiteRouterConnections(core_rtrs, site_rtrs, ipam, ipam_network, cvp_client=cvp_client)
 
-def run_script(operation=None, user=None, passwd=None):
-    list_of_files = glob.glob('./workbooks/workbook*.xls*')
+def getRouterDetails(workbook, site_rtrs, cvp_ipam, cvp_ipam_network, ib_ipam=None, ib_ipam_network=None):
+    logger.info("Getting Router Details")
+    core_rtrs = getCoreRouters(workbook, cvp_ipam, cvp_ipam_network, ib_ipam=ib_ipam, ib_ipam_network=ib_ipam_network)
+        
+    for rtr in core_rtrs:
+        if ib_ipam is not None and ib_ipam_network is not None:
+            rtr.getSiteInterfaces(site_rtrs, ib_ipam, ib_ipam_network)
+        else:
+            rtr.getSiteInterfaces(site_rtrs, cvp_ipam, cvp_ipam_network)
+
+    for rtr in core_rtrs:
+        logger.info("{}".format(str(rtr)))
+
+    return
+
+def run_script(operation=None, cvp_user=None, cvp_pass=None,
+                cvp_ipam_user=None, cvp_ipam_pass=None,
+                ib_user=None, ib_pass=None):
+    #Define Logger
+    global path
+
+    #Get most recently edited workbook
+    list_of_files = glob.glob('{}/workbooks/workbook*.xls*'.format(path))
     workbook = max(list_of_files, key=os.path.getctime)
 
     #Get Services and Site Routers that the Core Routers are connected to
+    routing_details = parseRoutingDetails(workbook)
     services = getServices(workbook)
     site_rtrs = getSiteRouters(workbook)
 
     #Get credentials for CVP
     global username, password
-    username, password = user, passwd
+    username, password = cvp_user, cvp_pass
 
-    #Parse CVP details
-    yaml_parsed = yaml.load(open("settings/cvp_info.yml"), Loader=yaml.FullLoader)
-    cvp_nodes = [node for node in [ yaml_parsed['primary'], yaml_parsed['secondary'], yaml_parsed['tertiary'] ] if node is not None ]
+    cvp_username, cvp_password = cvp_user, cvp_pass
+    cvp_ipam_username, cvp_ipam_password = cvp_ipam_user, cvp_ipam_pass
+    ib_username, ib_password = ib_user, ib_pass
+
+    # cvp_username, cvp_password = "cvpadmin", "nynjlab"
+    # cvp_ipam_username, cvp_ipam_password = "cvpadmin", "nynjlab"
+    # ib_username, ib_password = "admin", "Arista123"
+
+    #Parse CVP, CVP IPAM, and Infoblox Details
+    logger.debug("Parsing CVP and IPAM info")
+    server_info = yaml.load(open("{}/settings/appl_info.yml".format(path)), Loader=yaml.FullLoader)
 
     #Create CVP client
+    try:
+        cvp_nodes = [node for node in [ server_info["cvp"]['primary'] ] if node is not None ]
+        cvp = CvpClient()
+        cvp.connect(cvp_nodes, username, password)
+        logger.info("Created CVP client")
+    except CvpClientError as e:
+        logger.error("Unable to create CVP client\n{}".format(e))
+        return
+
+    #Create IPAM clients
+    try:
+        cvp_ipam_view = server_info["cvp_ipam"]["network"]
+        cvp_ipam_client = ipam("cvp")
+        cvp_ipam_client.login(server_info["cvp_ipam"]["ip_address"], cvp_username, cvp_password)
+        logger.info("Created CVP IPAM client")
+    except Exception as e:
+        logger.error("Unable to create CVP IPAM client\n{}".format(e))
+        return
+    try:
+        ib_ipam_view = server_info["infoblox"]["network"]
+        ib_ipam_client = ipam("infoblox")
+        ib_ipam_client.login(server_info["infoblox"]["ip_address"], ib_username, ib_password)
+        logger.info("Created Infoblox IPAM client")
+    except Exception as e:
+        logger.error("Unable to create Infoblox IPAM client\n{}".format(e))
+        ib_ipam_view = None
+        ib_ipam_client = None
+    
+    if ib_ipam_client is not None:
+        #Create networks/network_containers in routing details if they don't exist
+        create_main_networks_in_infoblox(ib_ipam_client, ib_ipam_view, routing_details) 
+        create_service_subnets_in_infoblox(ib_ipam_client, ib_ipam_view, services)
+
+    #Get Core Router details
+    core_rtrs = getCoreRouters(workbook, cvp_ipam_client, cvp_ipam_view, ib_ipam=ib_ipam_client, ib_ipam_network=ib_ipam_view)
+
+    if int(operation) == 0:
+        logger.info("Creating Management Configs...")
+        configureManagementConfig(core_rtrs, cvp_client=cvp, container='WAN-Core')
+        logger.info("Successfully Generated and Applied Management Configs.")
+
+    if int(operation) == 1:
+        logger.info("Creating Core Configs...")
+        configureCoreFabric(core_rtrs, services, routing_details, cvp_client=cvp, container=None)
+        logger.info("Successfully Generated and Applied Core Configs.")
+
+    elif int(operation) == 2:
+        logger.info("Creating Site Configs...")
+        if ib_ipam_client is not None and ib_ipam_view is not None:
+            addSiteRouterConnections(core_rtrs, site_rtrs, ib_ipam_client, ib_ipam_view, cvp_client=cvp)
+        else:
+            addSiteRouterConnections(core_rtrs, site_rtrs, cvp_ipam_client, cvp_ipam_view, cvp_client=cvp)
+        logger.info("Successfully Generated and Applied Site Configs.")
+
+    elif int(operation) == 3:
+        logger.info("Adding New Sites to Core Configs")
+        configureCoreFabric(core_rtrs, services, routing_details, cvp_client=cvp)
+        logger.info("Successfully Updated Core Configs.")
+
+
+    elif int(operation) == 4:
+        logger.info("Adding Services to Site")
+        if ib_ipam_client is not None and ib_ipam_view is not None:
+            addServicesToSite(core_rtrs, site_rtrs, ib_ipam_client, ib_ipam_view, cvp_client=cvp)
+        else:
+            addServicesToSite(core_rtrs, site_rtrs, cvp_ipam_client, cvp_ipam_view, cvp_client=cvp)
+        logger.info("Successfully Updated Site Configs.")
+
+    elif int(operation) == 5:
+        logger.info("Getting Router Details")
+        getRouterDetails(workbook, site_rtrs, cvp_ipam_client, cvp_ipam_view, ib_ipam=ib_ipam_client, ib_ipam_network=ib_ipam_view)
+        logger.info("Successfully Retrieved Router Details")
+
+def main():
+    list_of_files = glob.glob('./workbooks/workbook*.xls*')
+    workbook = max(list_of_files, key=os.path.getctime)
+
+    #Get Services and Site Routers that the Core Routers are connected to
+    routing_details = parseRoutingDetails(workbook)
+    services = getServices(workbook)
+    site_rtrs = getSiteRouters(workbook)
+
+    #Get credentials for CVP
+    global username, password
+    username, password = "cvpadmin", "nynjlab"
+    cvp_username, cvp_password = username, password
+    ib_username, ib_password = "admin", "Arista123"
+
+    #Parse CVP, CVP IPAM, and Infoblox Details
+    server_info = yaml.load(open("{}/settings/appl_info.yml".format(path)), Loader=yaml.FullLoader)
+
+    #Create CVP client
+    cvp_nodes = [node for node in [ server_info["cvp"]['primary'] ] if node is not None ]
     cvp = CvpClient()
     cvp.connect(cvp_nodes, username, password)
 
     #Parse IPAM details
-    yaml_parsed = yaml.load(open("settings/ipam_info.yml"), Loader=yaml.FullLoader)
-    ipam_address = yaml_parsed["ip_address"]
-    ipam_type = yaml_parsed["type"]
-    ipam_network = yaml_parsed["network"]
+    try:
+        cvp_ipam_view = server_info["cvp_ipam"]["network"]
+        cvp_ipam_client = ipam("cvp")
+        cvp_ipam_client.login(server_info["cvp"]["ip_address"], cvp_username, cvp_password)
+    except:
+        print("Unable to create CVP IPAM client")
+        return
+    try:
+        ib_ipam_view = server_info["infoblox"]["network"]
+        ib_ipam_client = ipam("infoblox")
+        ib_ipam_client.login(server_info["infoblox"]["ip_address"], ib_username, ib_password)
+    except:
+        print("Unable to creeate Infoblox IPAM client")
+        ib_ipam_view = None
+        ib_ipam_client = None
 
-    #Create IPAM client and define IPAM network
-    ipam_username, ipam_password = username, password
-    cvp_ipam = ipam(ipam_type)
-    cvp_ipam.login(ipam_address, ipam_username, ipam_password)
+    if ib_ipam_client is not None:
+        #Create networks/network_containers in routing details if they don't exist
+        create_main_networks_in_infoblox(ib_ipam_client, ib_ipam_view, routing_details) 
+        create_service_subnets_in_infoblox(ib_ipam_client, ib_ipam_view, services)
 
     #Get Core Router details
-    core_rtrs = getCoreRouters(workbook, cvp_ipam, ipam_network)
+    core_rtrs = getCoreRouters(workbook, cvp_ipam_client, cvp_ipam_view, ib_ipam=ib_ipam_client, ib_ipam_network=ib_ipam_view)
 
     for rtr in core_rtrs:
-        print(rtr)
-
-    return
-
-    if int(operation) == 1:
-        print("Creating Core Configs...")
-        configureCoreFabric(core_rtrs, services, cvp_client=cvp, include_mgmt=True)
-
-    elif int(operation) == 2:
-        print("Creating Site Configs...")
-        addSiteRouterConnections(core_rtrs, site_rtrs, cvp_ipam, ipam_network, cvp_client=cvp)
-
-    elif int(operation) == 3:
-        print("Adding New Sites to Core Configs")
-        configureCoreFabric(core_rtrs, services, cvp_client=cvp, include_mgmt=False)
-
-    elif int(operation) == 4:
-        print("Adding Services to Site")
-        addServicesToSite(core_rtrs, site_rtrs, cvp_ipam, ipam_network, cvp_client=cvp)
+        #Get site_interface info
+        if ib_ipam_client is not None and ib_ipam_view is not None:    
+            rtr.getSiteInterfaces(site_rtrs, ib_ipam_client, ib_ipam_view)
+            break
+        else:
+            rtr.getSiteInterfaces(site_rtrs, cvp_ipam_client, cvp_ipam_view)
 
 
 if __name__ == "__main__":
+    # main()
     cherrypy.quickstart(Handler(),'/',config = config)

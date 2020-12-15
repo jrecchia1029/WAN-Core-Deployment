@@ -1,4 +1,6 @@
 {# Core Fabric Configuration #}
+{# service routing protocols model #}
+{% include 'eos/service-routing-protocols-model.j2' %}
 {# VRF Instances #}
 {% include 'eos/vrf-instances.j2' %}
 {# Ethernet Interfaces #}
@@ -9,5 +11,9 @@
 {% include 'eos/vxlan-interface.j2' %}
 {# IP Routing for Service VRFs #}
 {% include 'eos/ip-routing.j2' %}
+{# Prefix-lists #}
+{% include 'eos/prefix-lists.j2' %}
+{# route-maps #}
+{% include 'eos/route-maps.j2' %}
 {# Router BGP #}
 {% include 'eos/router-bgp.j2' %}

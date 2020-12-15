@@ -1,7 +1,11 @@
 import xlrd
 import json
+import logging
+
+logger = logging.getLogger("main.service_parser")
 
 def parseServices(workbook):
+    logger.debug("Parsing services")
     services = []
     try:
         workbook = xlrd.open_workbook(workbook)
@@ -23,9 +27,9 @@ def parseServices(workbook):
             service[first_row[col]]=worksheet.cell_value(row,col)
         try:
             vrf = service["VRF"].strip()
-            vni = int(service["VNI"])
+            vni = int(service["VNI"]) if service["VNI"] != "" else None
             sub_iface_subnet = service["Subinterface Subnet"].strip()
-            sub_iface_vlan = int(service["Subinterface VLAN"])
+            sub_iface_vlan = int(service["Subinterface VLAN"]) if service["Subinterface VLAN"] != "" else None
             description = service["Description"].strip() if service["Description"].strip() != "" else None
             services.append({
                 "vrf": vrf,
