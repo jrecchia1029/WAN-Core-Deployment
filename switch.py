@@ -279,7 +279,7 @@ class CoreRouter():
                 }
             }
         }
-        if self.mgmt_gateway is not None:
+        if self.mgmt_gateway is not None and self.mgmt_gateway.strip() != "":
             data["static_routes"] = [
                 {
                     "vrf": mgmt_vrf,
