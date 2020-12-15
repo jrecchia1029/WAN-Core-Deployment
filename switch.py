@@ -363,6 +363,10 @@ class CoreRouter():
                     },
                     20: {
                         "action": "permit {} eq 32".format(routing_details["loopback1 subnet"])
+                    },
+                    #Advertise Management Subnet if using inband management
+                    30: {
+                        "action": "permit {} eq 32".format(routing_details["management subnet"])
                     }
                 }
             },
