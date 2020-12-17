@@ -21,7 +21,7 @@ logger = logging.getLogger('main')
 logger.setLevel(logging.DEBUG)
 # create file handler which logs even debug messages
 # fh = logging.FileHandler('{}/logs/Deployment-{}.log'.format(path, int(datetime.now().timestamp())), 'w+')
-fh = logging.FileHandler('{}/logs/Deployment.log'.format(path, int(datetime.now().timestamp())), 'w+')
+fh = logging.FileHandler('{}/logs/Deployment.log'.format(path), 'w+')
 fh.setLevel(logging.DEBUG)
 # create console handler with a higher log level
 ch = logging.StreamHandler()
@@ -63,7 +63,6 @@ class Handler(object):
     @cherrypy.tools.json_out()
     @cherrypy.tools.json_in()
     def run(self):
-
         result = {"operation": "request", "result": "success"}
         input_json = cherrypy.request.json
         # print("INPUT JSON")
@@ -419,10 +418,6 @@ def configureCoreFabric(core_rtrs, services, routing_details, cvp_client=None, c
             device_dict = None if rtr.serial_number not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.serial_number]
             configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=container)
 
-        #Print configlets
-        # for configlet in configlets_to_apply:
-        #     printConfiglet(configlet)
-
     return
  
 def addServices(core_rtrs, services, cvp_client=None):
@@ -446,10 +441,6 @@ def addServices(core_rtrs, services, cvp_client=None):
         if cvp_client is not None:
             device_dict = None if rtr.serial_number not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.serial_number]
             configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=None) 
-
-        #Print Configlets
-        # for configlet in configlets_to_apply:
-        #     printConfiglet(configlet)
 
     return
 
@@ -478,9 +469,6 @@ def addSiteRouterConnections(core_rtrs, site_rtrs, ipam, ipam_network, cvp_clien
             device_dict = None if rtr.serial_number not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.serial_number]
             configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=None) 
 
-        #Print Configlets
-        # for configlet in configlets_to_apply:
-        #     printConfiglet(configlet)
     return
 
 def addServicesToSite(core_rtrs, site_rtrs, ipam, ipam_network, cvp_client=None):
@@ -590,5 +578,4 @@ def run_script(operation=None, cvp_user=None, cvp_pass=None,
 
 
 if __name__ == "__main__":
-    # main()
     cherrypy.quickstart(Handler(),'/',config = config)
