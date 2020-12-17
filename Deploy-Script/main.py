@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import json, yaml, os, glob
 from cvprac.cvp_client import CvpClient
 from cvprac.cvp_client_errors import CvpClientError
