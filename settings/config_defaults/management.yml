@@ -2,7 +2,7 @@ cvp:
   ingest_auth_key: null
   node_ips:
   - 10.20.30.185
-include_terminattr: true
+include_terminattr: false
 interface: Management0
 interface_description: oob management
 vrf_description: management VRF

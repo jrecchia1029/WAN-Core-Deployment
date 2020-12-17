@@ -32,6 +32,7 @@ peer_groups:
     description: WAN Core evpn overlay peering group
     ebgp_multihop: ''
     maximum_routes: 0
+    maximum_routes_warning_limit: 12000
     password: kCFsSgJTNAURN+wu76ye+g==
     send_coommunity: true
     update_source: Loopback0
@@ -44,4 +45,5 @@ service_redistribution_routes:
   connected: null
 service_vrfs:
   maximum_routes: 0
+  maximum_routes_warning_limit: null
 underlay_peer_group: WANCORE

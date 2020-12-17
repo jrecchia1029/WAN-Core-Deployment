@@ -46,7 +46,7 @@ router bgp {{ router_bgp.as }}
    neighbor {{ peer_group }} send-community
 {%             endif %}
 {%             if router_bgp.peer_groups[peer_group].maximum_routes is defined and router_bgp.peer_groups[peer_group].maximum_routes is not none %}
-   neighbor {{ peer_group }} maximum-routes {{ router_bgp.peer_groups[peer_group].maximum_routes }}
+   neighbor {{ peer_group }} maximum-routes {{ router_bgp.peer_groups[peer_group].maximum_routes }}{% if router_bgp.peer_groups[peer_group].maximum_routes_warning_limit is defined and router_bgp.peer_groups[peer_group].maximum_routes_warning_limit is not none %} warning-limit {{ router_bgp.peer_groups[peer_group].maximum_routes_warning_limit }}{% endif %}
 {%             endif %}
 {%             if router_bgp.peer_groups[peer_group].weight is defined and router_bgp.peer_groups[peer_group].weight is not none %}
    neighbor {{ peer_group }} weight {{ router_bgp.peer_groups[peer_group].weight }}
@@ -340,7 +340,7 @@ router bgp {{ router_bgp.as }}
       neighbor {{ neighbor }} peer group {{ router_bgp.vrfs[vrf].neighbors[neighbor].peer_group }}
 {%                      endif %}
 {%                      if router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes is defined and router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes is not none %}
-      neighbor {{ neighbor }} maximum-routes {{ router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes }}
+      neighbor {{ neighbor }} maximum-routes {{ router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes }}{% if router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes_warning_limit is defined and router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes_warning_limit is not none %} warning-limit {{ router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes_warning_limit }}{% endif %}
 {%                      endif %}
 {%                 endfor %}
 {%             endif %}

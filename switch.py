@@ -259,12 +259,6 @@ class CoreRouter():
         ingestauth_key = mgmt_values["cvp"]["ingest_auth_key"] if mgmt_values["cvp"]["ingest_auth_key"] is not None else ""
         data = {
             "hostname": self.hostname,
-            "vrfs":{
-                mgmt_vrf:{
-                    "description": mgmt_values["vrf_description"],
-                    "ip_routing": False
-                }
-            },
             "management_interfaces":{
                 mgmt_interface: {
                     "vrf": mgmt_vrf,
@@ -279,6 +273,13 @@ class CoreRouter():
                 }
             }
         }
+        if mgmt_vrf != "default":
+            data["vrfs"] = {
+                mgmt_vrf:{
+                    "description": mgmt_values["vrf_description"],
+                    "ip_routing": False
+                }
+            }
         if self.mgmt_gateway is not None and self.mgmt_gateway.strip() != "":
             data["static_routes"] = [
                 {
@@ -490,7 +491,8 @@ class CoreRouter():
                         "remote_as": details["neighbor router"].site.asn,
                         "peer_group": bgp_values["core_to_site_peer_group"],
                         #Max routes for service VRF neighbors
-                        "maximum_routes": bgp_values["service_vrfs"]["maximum_routes"]
+                        "maximum_routes": bgp_values["service_vrfs"]["maximum_routes"],
+                        "maximum_routes_warning_limit": bgp_values["service_vrfs"]["maximum_routes_warning_limit"]
                     }
         data = {
             "ip_routing": True,
