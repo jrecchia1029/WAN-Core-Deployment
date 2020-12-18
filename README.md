@@ -1,6 +1,9 @@
 Clone this repo.
 `git clone https://github.com/jrecchia1029/WAN-Core-Deployment.git`
 
+Navigate to the `WAN-Core-Deployment` directory
+`cd WAN-Core-Deployment`
+
 Build the Dockerfile
 `docker build --tag deploy-wc:latest .`
 
