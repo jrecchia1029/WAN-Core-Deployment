@@ -66,6 +66,14 @@
                 </button>
             </div>
         </div>
+        <div class="col-10">
+            <div class="save" id="prerequisites_button" style='position:absolute;right:15px;'>
+                <button class="btn btn-warning" type="button" data-toggle="modal" data-target="#prereqsModal">
+                    Pre-Requisites
+                </button>
+            </div>
+        </div>
+
     </div>
     <div class="row">
         <div class="col-2">
@@ -121,6 +129,31 @@
             </div>
         </div>
 
+    </div>
+    <div class="modal fade" id="prereqsModal" tabindex="-1" role="dialog" aria-labelledby="prereqsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="prereqsModalLabel">Pre-Requisites</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="prereqsModalBody">
+                    <ul class="list-group">
+                        <li class="list-group-item">CloudVision set up and the devices under the 'WAN Core Router' tab are onboarded.</li>
+                        <li class="list-group-item">When setting up the management configuration, make sure the 'container' field is set under the Config settings and a valid container exists in CVP.</li>
+                        <li class="list-group-item">Make sure any standard configuration such as AAA, local users, TerminAttr, etc is applied via a configlet at the container level in CVP.</li>
+                        <li class="list-group-item">If configuring a default route for management, make sure the default gateway is configured in the proper subnet in the proper IPAM.</li>
+                        <li class="list-group-item">Before creating the Core to Core and Core to Site configuration, make sure the BGP range input under the 'WAN Core Details' tab is created in CVP IPAM.</li>
+                        <li class="list-group-item">If using CVP IPAM for address tracking, make sure all subnets listed on the 'WAN Core Details' tab and the 'Services' tab are created in CVP IPAM (You don't need to do this for Infoblox).</li>
+                      </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
     </div>
     <div class="modal fade" id="uploadModal" tabindex="-1" role="dialog" aria-labelledby="uploadModalLabel" aria-hidden="true">
         <div class="modal-dialog" role="document">

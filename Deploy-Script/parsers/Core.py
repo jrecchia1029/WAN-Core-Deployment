@@ -26,7 +26,7 @@ def parseCoreRouterDetails(workbook):
         for col in range(worksheet.ncols):
             core_rtr_links[first_row[col]]=worksheet.cell_value(row,col)
         try:
-            name = core_rtr_links["Name"].strip()
+            name = core_rtr_links["Hostname"].strip()
             wan_links[name] = {"serial number": core_rtr_links["Serial Number"].strip()}
             # if core_rtr_links["Interface to Halsey"].strip() != "":
             #     wan_links[name][core_rtr_links["Interface to Halsey"].strip()] = {

@@ -2,8 +2,8 @@ cvp:
   ingest_auth_key: null
   node_ips:
   - 10.20.30.185
-include_terminattr: false
+include_terminattr: true
 interface: Management0
 interface_description: oob management
-vrf_description: management VRF
+vrf_description: null
 vrf_name: MGMT

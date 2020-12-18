@@ -37,7 +37,7 @@ logger.addHandler(ch)
 
 config = {
     'global' : {
-        'server.socket_host' : '127.0.0.1',
+        'server.socket_host' : '0.0.0.0',
         'server.socket_port' : 8080,
         'server.thread_pool' : 4,
         'server.ssl_module' : 'builtin'
@@ -182,6 +182,7 @@ class Handler(object):
         config_settings = {}
         config_settings["bgp"] = yaml.load(open("{}/settings/config_defaults/bgp.yml".format(path)), Loader=yaml.FullLoader)
         config_settings["management"] = yaml.load(open("{}/settings/config_defaults/management.yml".format(path)), Loader=yaml.FullLoader)
+        config_settings["cvp"] = yaml.load(open("{}/settings/cvp.yml".format(path)), Loader=yaml.FullLoader)
         return json.dumps(config_settings)
 
     @cherrypy.expose
@@ -192,11 +193,14 @@ class Handler(object):
         input_json = cherrypy.request.json
         bgp_config = input_json["bgp"]
         management_config = input_json["management"]
+        cvp_settings = input_json["cvp"]
 
         with open("{}/settings/config_defaults/bgp.yml".format(path), 'w') as filename:
             yaml.dump(bgp_config, filename)
         with open("{}/settings/config_defaults/management.yml".format(path), 'w') as filename:
             yaml.dump(management_config, filename)
+        with open("{}/settings/cvp.yml".format(path), 'w') as filename:
+            yaml.dump(cvp_settings, filename)
 
         return result
         
@@ -343,11 +347,11 @@ def getSiteRouters(workbook):
         found_site = False
         for site in sites:
             if rtr["Site"] == site.name:
-                site_routers.append(SiteRouter(rtr["Name"], site))
+                site_routers.append(SiteRouter(rtr["Hostname"], site))
                 found_site = True
                 break
         if found_site == False:
-            print("Could not find a {} in sites for {}".format(rtr["Site"], rtr["Name"]))
+            logger.warning("Could not find a {} in sites for {}".format(rtr["Site"], rtr["Hostname"]))
     return site_routers
 
 def getCoreRouters(workbook, cvp_ipam, cvp_ipam_network, ib_ipam=None, ib_ipam_network=None):
@@ -526,18 +530,25 @@ def run_script(operation=None, cvp_user=None, cvp_pass=None,
 
     #Create IPAM clients
     try:
-        cvp_ipam_view = server_info["cvp_ipam"]["network"]
+        cvp_ipam_view = server_info["cvp_ipam"]["network"] if server_info["cvp_ipam"]["network"].strip() != "" else None
+        cvp_ipam_address = server_info["cvp_ipam"]["ip_address"] if server_info["cvp_ipam"]["ip_address"].strip() != "" else None
         cvp_ipam_client = ipam("cvp")
-        cvp_ipam_client.login(server_info["cvp_ipam"]["ip_address"], cvp_username, cvp_password)
+        cvp_ipam_client.login(cvp_ipam_address, cvp_username, cvp_password)
         logger.info("Created CVP IPAM client")
     except Exception as e:
         logger.error("Unable to create CVP IPAM client\n{}".format(e))
         return
     try:
-        ib_ipam_view = server_info["infoblox"]["network"]
+        ib_ipam_view = server_info["infoblox"]["network"] if server_info["infoblox"]["network"].strip() != "" else None
+        ib_ipam_address = server_info["infoblox"]["ip_address"] if server_info["infoblox"]["ip_address"].strip() != "" else None
         ib_ipam_client = ipam("infoblox")
-        ib_ipam_client.login(server_info["infoblox"]["ip_address"], ib_username, ib_password)
-        logger.info("Created Infoblox IPAM client")
+        if ib_ipam_view is not None and ib_ipam_address is not None:
+            ib_ipam_client.login(ib_ipam_address, ib_username, ib_password)
+            logger.info("Created Infoblox IPAM client")
+        else:
+            logger.info("Not enough information given to create Infoblox IPAM client")
+            ib_ipam_client = None
+            logger.info("Skippping creating Infoblox IPAM client")
     except Exception as e:
         logger.error("Unable to create Infoblox IPAM client\n{}".format(e))
         ib_ipam_view = None
@@ -552,8 +563,9 @@ def run_script(operation=None, cvp_user=None, cvp_pass=None,
     core_rtrs = getCoreRouters(workbook, cvp_ipam_client, cvp_ipam_view, ib_ipam=ib_ipam_client, ib_ipam_network=ib_ipam_view)
 
     if int(operation) == 1:
+        container = yaml.load(open("{}/settings/cvp.yml".format(path)), Loader=yaml.FullLoader)["container"]
         logger.info("Creating Management Configs...")
-        configureManagementConfig(core_rtrs, cvp_client=cvp, container='WAN-Core')
+        configureManagementConfig(core_rtrs, cvp_client=cvp, container=container)
         logger.info("Successfully Generated and Applied Management Configs.")
 
     if int(operation) == 2:
