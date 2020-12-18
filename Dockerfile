@@ -2,7 +2,7 @@
 FROM ubuntu:latest
 
 # Set the working directory.
-WORKDIR /app
+WORKDIR /Deploy-Script
 
 # Copy the file from your host to your current location.
 COPY Deploy-Script .
