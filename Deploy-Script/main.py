@@ -22,7 +22,7 @@ logger = logging.getLogger('main')
 logger.setLevel(logging.DEBUG)
 # create file handler which logs even debug messages
 # fh = logging.FileHandler('{}/logs/Deployment-{}.log'.format(path, int(datetime.now().timestamp())), 'w+')
-fh = logging.FileHandler('{}/logs/Deployment.log'.format(path), 'w+')
+fh = logging.FileHandler('{}/logs/Deployment.log'.format(path), 'a+')
 fh.setLevel(logging.DEBUG)
 # create console handler with a higher log level
 ch = logging.StreamHandler()
@@ -309,7 +309,7 @@ def configureDeviceWithCVP(cvp, device_info, configlets_to_apply, apply=False, c
     if apply == True:
         logger.debug("Applying configs")
         if device_info is None:
-            logger.error("Unable to find {} in CVP inventory".format(device.hostname))
+            logger.error("Unable to find {} in CVP inventory".format(device_info.hostname))
             return
         if container is not None:
             logger.debug("Deploying {}".format(device_info["hostname"]))

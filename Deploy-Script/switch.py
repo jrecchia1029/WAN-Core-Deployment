@@ -529,6 +529,15 @@ def get_transit_ip_from_ipam(ipam_client, view, transit_block, connection, subne
     if len(subnets) > 0:
         if len(subnets) != 1:
             logger.warning("Multiple subnets found for regex '{}' in network container {}".format(allocation_name, transit_block))
+            #Search for endpointB:interfaceB
+            secondary_re = "{}:{}".format(connection["neighbor hostname"], connection["neighbor interface"]) #endpointA:interfaceA
+            secondary_re = secondary_re.replace("-", "_") #CVP IPAM converts "-" to "_"
+            secondary_subnets = ipam_client.find_subnetworks_by_regex(view, transit_block, secondary_re)
+            if len(secondary_subnets) > 0:
+                for sec_sub in secondary_subnets:
+                    if sec_sub in subnets:
+                        subnets = [ sec_sub ]
+                        break
         else:
             logger.debug("Found existing subnet {} from network container {} for {}".format(subnets[0], transit_block, allocation_name))
         subnet = subnets[0]
