@@ -74,21 +74,23 @@ class Handler(object):
     @cherrypy.expose
     @cherrypy.tools.json_out()
     def log(self):
-        # list_of_files = glob.glob('{}/logs/Deployment*.log'.format(path)) # * means all if need specific format then *.csv
-        # if len(list_of_files) > 5:
-        #     oldest_file = min(list_of_files, key=os.path.getctime)
-        #     os.remove(oldest_file)
+        log_file = "{}/logs/Deployment.log".format(path)
 
-        # list_of_files = glob.glob('{}/logs/Deployment*.log'.format(path)) # * means all if need specific format then *.csv
-        # latest_log_file = max(list_of_files, key=os.path.getctime)
-
-        latest_log_file = "{}/logs/Deployment.log".format(path)
-
-        f = open(latest_log_file)
+        f = open(log_file)
         text = f.read()
         f.close()
 
         return json.dumps(text)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in()
+    def clearLog(self):
+        result = {"operation": "request", "result": "success"}
+        log_file = "{}/logs/Deployment.log".format(path)
+        with open(log_file, 'w') as filename:
+            filename.write("")
+        return result
 
     @cherrypy.expose
     def readfile(self):

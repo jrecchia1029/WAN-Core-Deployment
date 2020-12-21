@@ -119,6 +119,7 @@
             <button class="btn btn-primary write button">Write File</button>
             <br/>
             <button class="btn btn-primary button" data-toggle="modal" data-target="#deployModal" >View log</button>
+            <button class="btn btn-danger button" onclick="clearLog()">Clear log</button>
             <button class="btn btn-primary config-settings button" data-toggle="modal" data-target="#configSettingsModal" >View Config Settings</button>
         </div>
         <div class="col-10">
@@ -467,7 +468,6 @@
                     }
                 })
             });
-            console.log(config_settings)
             $('.save-config-settings-button').click(function() {
                 $.ajax({
                     type: "POST",
@@ -505,6 +505,23 @@
                 document.getElementById("cvp_ipam_info").style.display = "none";
                 document.getElementById("infoblox_ipam_info").style.display = "block";
             }
+        }
+        function clearLog() {
+            $.ajax({
+                    type: "POST",
+                    url: '/clearLog',
+
+                    data: JSON.stringify(  config_settings  ),
+                    success: function(result) {
+                        bootstrap_alert('#form_errors', 'Write success')
+                    },
+                    error: function(error) {
+                        bootstrap_alert('#form_errors', 'Write error: ' + error)
+
+                    },
+                    contentType: 'application/json',
+                    dataType: 'json'
+                })
         }
     </script>
 
