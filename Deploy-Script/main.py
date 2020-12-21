@@ -482,6 +482,8 @@ def addServicesToSite(core_rtrs, site_rtrs, ipam, ipam_network, cvp_client=None)
 def printRouterDetails(core_rtrs, site_rtrs, ipam, ipam_network):
     for rtr in core_rtrs:
         #Get site_interface info
+        logger.info("{}".format(str(rtr)))
+        logger.info("Core interfaces for {}\n{}\n".format(rtr.hostname, rtr.core_interfaces))
         rtr.getSiteInterfaces(site_rtrs, ipam, ipam_network)
         logger.info("Site interfaces for {}\n{}\n\n".format(rtr.hostname, rtr.site_interfaces))
 
