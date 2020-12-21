@@ -426,6 +426,8 @@ class CvpIpam(object):
 
     def find_subnetworks_by_regex(self, view, network, regex):
         matched_subnets = []
+        if network is None:
+            return matched_subnets
         subnets = self._get_pools(view, subnet=network)
         if subnets is None:
             return matched_subnets
