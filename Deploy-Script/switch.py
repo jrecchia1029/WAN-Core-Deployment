@@ -120,7 +120,7 @@ class CoreRouter():
 
         #Remove empty interface section from merged_config
         for section in re.split(r'\n(?=interface)', merged_config):
-            section = re.sub(r'^interface\s+(Ethernet|Port-Channel|Management|Vlan|Vxlan)\d+\n!', '', section)
+            section = re.sub(r'^interface\s+(Ethernet|Port-Channel|Management|Vlan|Vxlan)\d+(\/\d+)*\n!', '', section)
             if section.strip() != "":
                 if section[0] == "\n":
                     section = section[1:]
@@ -141,14 +141,15 @@ class CoreRouter():
         self.logger.debug("Setting core_interfaces for {}".format(self.hostname))
         core_interfaces = {}
         lldp_neighbors = self.getLLDPNeighbors()
-        if lldp_neighbors is not None:
-            for rtr in core_rtrs:
-                for neighbor in lldp_neighbors:
-                    if rtr.hostname in neighbor["neighborDevice"]:
-                        core_interfaces[ neighbor["port"] ] = {
-                                "neighbor hostname": rtr.hostname,
-                                "neighbor interface": neighbor["neighborPort"]
-                            }
+        if lldp_neighbors is None:
+            return
+        for rtr in core_rtrs:
+            for neighbor in lldp_neighbors:
+                if rtr.hostname in neighbor["neighborDevice"]:
+                    core_interfaces[ neighbor["port"] ] = {
+                            "neighbor hostname": rtr.hostname,
+                            "neighbor interface": neighbor["neighborPort"]
+                        }
         self.core_interfaces = core_interfaces
 
     def getAddressesForCoreFabric(self, routing_details, ipam, ipam_network):
@@ -199,48 +200,49 @@ class CoreRouter():
         self.logger.debug("Getting site_interfaces for {}".format(self.hostname))
         site_interfaces = {}
         lldp_neighbors = self.getLLDPNeighbors()
-        if lldp_neighbors is not None:
-            for rtr in site_rtrs:
-                for neighbor in lldp_neighbors:
-                    if rtr.hostname in neighbor["neighborDevice"]:
-                        # Add site link to core_rtr.site_interfaces
-                        site_interfaces[ neighbor["port"] ] = {
+        if lldp_neighbors is None:
+            return
+        for rtr in site_rtrs:
+            for neighbor in lldp_neighbors:
+                if rtr.hostname in neighbor["neighborDevice"]:
+                    # Add site link to core_rtr.site_interfaces
+                    site_interfaces[ neighbor["port"] ] = {
+                            "neighbor router": rtr,
+                            "neighbor interface": neighbor["neighborPort"],
+                            "ip address": None,
+                            "neighbor ip address": None,
+                            "subnet": None,
+                        }
+                    for service in rtr.site.services:
+                        site_interfaces["{}.{}".format(neighbor["port"], service["subinterface vlan"])] = {
                                 "neighbor router": rtr,
-                                "neighbor interface": neighbor["neighborPort"],
+                                "neighbor interface": "{}.{}".format(neighbor["neighborPort"], service["subinterface vlan"]),
                                 "ip address": None,
                                 "neighbor ip address": None,
-                                "subnet": None,
+                                "vlan":  service["subinterface vlan"],
+                                "vrf": service["vrf"],
+                                "subnet": service["subinterface subnet"]
                             }
-                        for service in rtr.site.services:
-                            site_interfaces["{}.{}".format(neighbor["port"], service["subinterface vlan"])] = {
-                                    "neighbor router": rtr,
-                                    "neighbor interface": "{}.{}".format(neighbor["neighborPort"], service["subinterface vlan"]),
-                                    "ip address": None,
-                                    "neighbor ip address": None,
-                                    "vlan":  service["subinterface vlan"],
-                                    "vrf": service["vrf"],
-                                    "subnet": service["subinterface subnet"]
-                                }
-            # #Get IP Address for site interfaces
-            for interface, details in site_interfaces.items():
-                if details["subnet"] is None:
-                    continue
-                connection_info = {
-                    "hostname": self.hostname,
-                    "local interface": interface,
-                    "neighbor hostname": details["neighbor router"].hostname,
-                    "neighbor interface": details["neighbor interface"]
-                }
-                local_interface_ip = get_transit_ip_from_ipam(ipam, ipam_network, details["subnet"], connection_info, subnet_mask=30)
-                site_interfaces[interface]["ip address"] = local_interface_ip
-                neighbor_connection_info = {
-                    "hostname": details["neighbor router"].hostname,
-                    "local interface": details["neighbor interface"],
-                    "neighbor hostname": self.hostname,
-                    "neighbor interface": interface
-                }
-                neighbor_interface_ip = get_transit_ip_from_ipam(ipam, ipam_network, details["subnet"], neighbor_connection_info, subnet_mask=30)
-                site_interfaces[interface]["neighbor ip address"] = neighbor_interface_ip
+        # #Get IP Address for site interfaces
+        for interface, details in site_interfaces.items():
+            if details["subnet"] is None:
+                continue
+            connection_info = {
+                "hostname": self.hostname,
+                "local interface": interface,
+                "neighbor hostname": details["neighbor router"].hostname,
+                "neighbor interface": details["neighbor interface"]
+            }
+            local_interface_ip = get_transit_ip_from_ipam(ipam, ipam_network, details["subnet"], connection_info, subnet_mask=30)
+            site_interfaces[interface]["ip address"] = local_interface_ip
+            neighbor_connection_info = {
+                "hostname": details["neighbor router"].hostname,
+                "local interface": details["neighbor interface"],
+                "neighbor hostname": self.hostname,
+                "neighbor interface": interface
+            }
+            neighbor_interface_ip = get_transit_ip_from_ipam(ipam, ipam_network, details["subnet"], neighbor_connection_info, subnet_mask=30)
+            site_interfaces[interface]["neighbor ip address"] = neighbor_interface_ip
 
         self.logger.debug("Setting site_interfaces for {}".format(self.hostname))
         self.site_interfaces = site_interfaces
@@ -552,6 +554,7 @@ def get_transit_ip_from_ipam(ipam_client, view, transit_block, connection, subne
         #Create child_subnet name
         logger.debug("Could not find an existing subnet from network container {} for {}".format(transit_block, allocation_name))
         child_subnet_name = "{}:{}::{}:{}".format(connection["hostname"], connection["local interface"], connection["neighbor hostname"], connection["neighbor interface"]) #endpointA:interfaceA::endpointB:interfaceB
+        child_subnet_name = child_subnet_name.replace("-", "_") #CVP IPAM converts "-" to "_"
         #Create new child subnet
         subnet = ipam_client.allocate_child_subnet(view, transit_block, child_subnet_name, subnet_mask)
         logger.debug("Created subnet {} from {} for {}".format(subnet, transit_block, allocation_name))
