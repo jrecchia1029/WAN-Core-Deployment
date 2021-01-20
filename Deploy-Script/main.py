@@ -381,6 +381,22 @@ def getCoreRouters(workbook, cvp_ipam, cvp_ipam_network, ib_ipam=None, ib_ipam_n
         
     return core_routers
 
+def getCoreRoutersManagement(workbook, cvp_ipam, cvp_ipam_network, ib_ipam=None, ib_ipam_network=None):
+    logger.info("Gettting Core Router details")
+    global username, password
+    core_routers = []
+    #Get all connections between WAN Core routers
+    core_rtr_details = parseCoreRouterDetails(workbook)
+    routing_details = parseRoutingDetails(workbook)
+
+    #Create Core Router object and Update Management Info
+    for hostname, info in core_rtr_details.items():
+        rtr = CoreRouter(hostname=hostname, username=username, password=password, serial_number=info["serial number"])
+        rtr.getManagementInfo(routing_details, ib_ipam, ib_ipam_network) if ib_ipam and ib_ipam_network is not None else rtr.getManagementInfo(routing_details, cvp_ipam, cvp_ipam_network)
+        core_routers.append(rtr)
+        
+    return core_routers
+
 def configureManagementConfig(core_rtrs, cvp_client=None, container=None):
     #Get Core Router Device Dictionary from CVP 
     if cvp_client is not None:
@@ -564,7 +580,10 @@ def run_script(operation=None, cvp_user=None, cvp_pass=None,
         create_service_subnets_in_infoblox(ib_ipam_client, ib_ipam_view, services)
 
     #Get Core Router details
-    core_rtrs = getCoreRouters(workbook, cvp_ipam_client, cvp_ipam_view, ib_ipam=ib_ipam_client, ib_ipam_network=ib_ipam_view)
+    if int(operation) == 1:
+        core_rtrs = getCoreRoutersManagement(workbook, cvp_ipam_client, cvp_ipam_view, ib_ipam=ib_ipam_client, ib_ipam_network=ib_ipam_view)
+    else:
+        core_rtrs = getCoreRouters(workbook, cvp_ipam_client, cvp_ipam_view, ib_ipam=ib_ipam_client, ib_ipam_network=ib_ipam_view)
 
     if int(operation) == 1:
         container = yaml.load(open("{}/settings/cvp.yml".format(path)), Loader=yaml.FullLoader)["container"]
