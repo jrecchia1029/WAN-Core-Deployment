@@ -20,21 +20,24 @@ peer_groups:
   Core-To-Site:
     bfd: true
     description: Underlay to CEs
-    maximum_routes: 12000
+    maximum_routes: 0
+    maximum_routes_warning_limit: 12000
+    send_community: true
     password: Wpu40zmvmGch4am4DjTbsQ==
   WANCORE:
     bfd: true
     description: WAN Core ipv4 underlay peering group
     maximum_routes: 12000
+    send_community: true
     password: Rfpjs767YXSveBVW+RrNQA==
   WC-EVPN-TRANSIT:
     bfd: false
     description: WAN Core evpn overlay peering group
-    ebgp_multihop: ''
+    ebgp_multihop: 5
     maximum_routes: 0
     maximum_routes_warning_limit: 12000
     password: kCFsSgJTNAURN+wu76ye+g==
-    send_coommunity: true
+    send_community: true
     update_source: Loopback0
 prefix_list_names:
   loopbacks_pl_name: PL-Loopbacks
@@ -45,5 +48,5 @@ service_redistribution_routes:
   connected: null
 service_vrfs:
   maximum_routes: 0
-  maximum_routes_warning_limit: null
+  maximum_routes_warning_limit: 12000
 underlay_peer_group: WANCORE
