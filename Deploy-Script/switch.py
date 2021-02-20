@@ -312,7 +312,7 @@ class CoreRouter():
     def produceCoreFabricConfig(self, services, routing_details):
         #Load default values
         bgp_values = yaml.load(open("{}/settings/config_defaults/bgp.yml".format(path)), Loader=yaml.FullLoader)
-
+        mcast_values = yaml.load(open("{}/settings/config_defaults/mcast.yml".format(path)), Loader=yaml.FullLoader)
         #Format variables for templates
         #Format Service VRFs
         vrfs = {}
@@ -330,6 +330,13 @@ class CoreRouter():
                 "type": "routed",
                 "ip_address": details["ip address"]
             }
+            if mcast_values["multicast"] == True:
+                ethernet_interfaces[iface]["igmp_static_groups"] = mcast_values["igmp_static_groups"]
+                ethernet_interfaces[iface]["pim"] = {
+                    "ipv4": {
+                        "sparse_mode": True
+                    }
+                }
 
         #Format loopback interfaces
         loopback_interfaces = {
@@ -383,10 +390,16 @@ class CoreRouter():
                 }
             }
         }
+
         for i, service in enumerate(services):
             prefix_lists[bgp_values["prefix_list_names"]["transit_pl_name"]]["sequence_numbers"][(i + 2) * 10] = {
                         "action": "permit {} le 31".format(service["subinterface subnet"]) 
                     }
+
+        if mcast_values["multicast"] == True:
+            for pl_name, pl_info in mcast_values["prefix_lists"].items():
+                prefix_lists[pl_name] = pl_info
+
         #Format Route Maps info
         route_maps = {
             bgp_values["core_redistribution_routes"]["connected"]["route_map"]:{
@@ -402,6 +415,9 @@ class CoreRouter():
                 }
             }
         }
+        if mcast_values["multicast"] == True:
+            for rm_name, rm_info in mcast_values["route_maps"].items():
+                route_maps[rm_name] = rm_info
 
         #Format BGP info
         router_bgp = {
@@ -436,7 +452,14 @@ class CoreRouter():
                     "redistribute_routes": bgp_values["service_redistribution_routes"],
                     "neighbors": {}
                 }
-        
+
+        if mcast_values["multicast"] == True:
+            router_multicast = mcast_values["router_multicast"]
+            router_pim_sparse_mode = mcast_values["router_pim_sparse_mode"]
+        else:
+            router_multicast = None
+            router_pim_sparse_mode = None
+
         data = {
             "service_routing_protocols_model": "multi-agent",
             "vrfs": vrfs,
@@ -446,7 +469,9 @@ class CoreRouter():
             "ip_routing": True,
             "prefix_lists": prefix_lists,
             "route_maps": route_maps,
-            "router_bgp": router_bgp
+            "router_bgp": router_bgp,
+            "router_multicast": router_multicast,
+            "router_pim_sparse_mode": router_pim_sparse_mode
         }
         template = env.get_template('core-fabric-configlet.j2')
         rendered_config = template.render(data)
@@ -456,6 +481,7 @@ class CoreRouter():
     def produceCoreToSiteConfig(self):
         #Load default values
         bgp_values = yaml.load(open("{}/settings/config_defaults/bgp.yml".format(path)), Loader=yaml.FullLoader)
+        mcast_values = yaml.load(open("{}/settings/config_defaults/mcast.yml".format(path)), Loader=yaml.FullLoader)
 
         #Format variables for templates
         ethernet_interfaces = {}
@@ -469,6 +495,14 @@ class CoreRouter():
                 ethernet_interfaces[iface]["vrf"] = details["vrf"]
                 ethernet_interfaces[iface]["vlans"] = details["vlan"]
                 ethernet_interfaces[iface]["ip_address"] = details["ip address"]
+                if mcast_values["multicast"] == True:
+                    ethernet_interfaces[iface]["igmp_static_groups"] = mcast_values["igmp_static_groups"]
+                    ethernet_interfaces[iface]["pim"] = {
+                        "ipv4": {
+                            "sparse_mode": True,
+                            "dr_priority": 100
+                        }
+                    }
 
         #Format BGP & VRF variables 
         router_bgp = {
@@ -498,6 +532,10 @@ class CoreRouter():
                         "maximum_routes": bgp_values["service_vrfs"]["maximum_routes"],
                         "maximum_routes_warning_limit": bgp_values["service_vrfs"]["maximum_routes_warning_limit"]
                     }
+                    if details["vrf"] == "default":
+                        router_bgp["vrfs"][ details["vrf"] ]["neighbors"][details["neighbor ip address"].split("/")[0]]["route_map_out"] = list(mcast_values["route_maps"].keys())[0]
+                    else:
+                        router_bgp["vrfs"][ details["vrf"] ]["neighbors"][details["neighbor ip address"].split("/")[0]]["route_map_out"] = list(mcast_values["route_maps"].keys())[1]
         data = {
             "ip_routing": True,
             "vrfs": router_bgp["vrfs"],

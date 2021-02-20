@@ -65,6 +65,19 @@ interface {{ ethernet_interface }}
 {%             if ethernet_interfaces[ethernet_interface].ip_address is defined and ethernet_interfaces[ethernet_interface].ip_address is not none %}
    ip address {{ ethernet_interfaces[ethernet_interface].ip_address }}
 {%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].igmp_static_groups is defined and ethernet_interfaces[ethernet_interface].igmp_static_groups is not none %}
+{%                for group in ethernet_interfaces[ethernet_interface].igmp_static_groups %}
+   ip igmp static-group {{ group }}
+{%                endfor %}
+{%             endif %}
+{%             if ethernet_interfaces[ethernet_interface].pim is defined and ethernet_interfaces[ethernet_interface].pim.ipv4 is defined %}
+{%                 if ethernet_interfaces[ethernet_interface].pim.ipv4.sparse_mode is defined and ethernet_interfaces[ethernet_interface].pim.ipv4.sparse_mode == true %}
+   pim ipv4 sparse-mode
+{%                 endif %}
+{%                 if ethernet_interfaces[ethernet_interface].pim.ipv4.dr_priority is defined and ethernet_interfaces[ethernet_interface].pim.ipv4.dr_priority is not none %}
+   pim ipv4 dr-priority {{ ethernet_interfaces[ethernet_interface].pim.ipv4.dr_priority }}
+{%                 endif %}
+{%             endif %}
 {%         endif %}
 !
 {%     endfor %}

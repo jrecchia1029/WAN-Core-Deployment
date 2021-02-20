@@ -439,7 +439,7 @@ def configureCoreFabric(core_rtrs, services, routing_details, cvp_client=None, c
         # Create/Update Configlets in CVP, Apply to Device, and Move device to proper container if necessary
         if cvp_client is not None:
             device_dict = None if rtr.serial_number not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.serial_number]
-            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=container)
+            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=container, overwrite_configlets=True)
 
     return
  
@@ -463,7 +463,7 @@ def addServices(core_rtrs, services, cvp_client=None):
         # Create/Update Configlets in CVP, Apply to Device, and Move device to proper container if necessary
         if cvp_client is not None:
             device_dict = None if rtr.serial_number not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.serial_number]
-            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=None) 
+            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=None, overwrite_configlets=True) 
 
     return
 
@@ -490,7 +490,7 @@ def addSiteRouterConnections(core_rtrs, site_rtrs, ipam, ipam_network, cvp_clien
         # Create/Update Configlets in CVP, Apply to Device, and Move device to proper container if necessary
         if cvp_client is not None:
             device_dict = None if rtr.serial_number not in cvp_core_rtr_info.keys() else cvp_core_rtr_info[rtr.serial_number]
-            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=None) 
+            configureDeviceWithCVP(cvp_client, device_dict, configlets_to_apply, apply=True, container=None, overwrite_configlets=True) 
 
     return
 

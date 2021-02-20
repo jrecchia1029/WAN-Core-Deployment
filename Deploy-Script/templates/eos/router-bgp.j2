@@ -54,6 +54,12 @@ router bgp {{ router_bgp.as }}
 {%             if router_bgp.peer_groups[peer_group].timers is defined and router_bgp.peer_groups[peer_group].timers is not none %}
    neighbor {{ peer_group }} timers {{ router_bgp.peer_groups[peer_group].timers }}
 {%             endif %}
+{%             if router_bgp.peer_groups[peer_group].route_map_in is defined and router_bgp.peer_groups[peer_group].route_map_in is not none %}
+   neighbor {{ peer_group }} route-map {{ router_bgp.peer_groups[peer_group].route_map_in }} in
+{%             endif %}
+{%             if router_bgp.peer_groups[peer_group].route_map_out is defined and router_bgp.peer_groups[peer_group].route_map_out is not none %}
+   neighbor {{ peer_group }} route-map {{ router_bgp.peer_groups[peer_group].route_map_out }} out
+{%             endif %}
 {%       endfor %}
 {%     endif %}
 {%     if router_bgp.neighbors is defined and router_bgp.neighbors is not none %}
@@ -87,6 +93,12 @@ router bgp {{ router_bgp.as }}
 {%             endif %}
 {%             if router_bgp.neighbors[neighbor].timers is defined and router_bgp.neighbors[neighbor].timers is not none %}
    neighbor {{ neighbor }} timers {{ router_bgp.neighbors[neighbor].timers }}
+{%             endif %}
+{%             if router_bgp.neighbors[neighbor].route_map_in is defined and router_bgp.neighbors[neighbor].route_map_in is not none %}
+   neighbor {{ neighbor }} route-map {{ router_bgp.neighbors[neighbor].route_map_in }} in
+{%             endif %}
+{%             if router_bgp.neighbors[neighbor].route_map_out is defined and router_bgp.neighbors[neighbor].route_map_out is not none %}
+   neighbor {{ neighbor }} route-map {{ router_bgp.neighbors[neighbor].route_map_out }} out
 {%             endif %}
 {%         endfor %}
 {%     endif %}
@@ -341,6 +353,12 @@ router bgp {{ router_bgp.as }}
 {%                      endif %}
 {%                      if router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes is defined and router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes is not none %}
       neighbor {{ neighbor }} maximum-routes {{ router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes }}{% if router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes_warning_limit is defined and router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes_warning_limit is not none %} warning-limit {{ router_bgp.vrfs[vrf].neighbors[neighbor].maximum_routes_warning_limit }}{% endif %}
+{%                      endif %}
+{%                      if router_bgp.vrfs[vrf].neighbors[neighbor].route_map_in is defined and router_bgp.vrfs[vrf].neighbors[neighbor].route_map_in is not none %}
+      neighbor {{ neighbor }} route-map {{ router_bgp.vrfs[vrf].neighbors[neighbor].route_map_in }} in
+{%                      endif %}
+{%                      if router_bgp.vrfs[vrf].neighbors[neighbor].route_map_out is defined and router_bgp.vrfs[vrf].neighbors[neighbor].route_map_out is not none %}
+      neighbor {{ neighbor }} route-map {{ router_bgp.vrfs[vrf].neighbors[neighbor].route_map_out }} out
 {%                      endif %}
 {%                 endfor %}
 {%             endif %}
