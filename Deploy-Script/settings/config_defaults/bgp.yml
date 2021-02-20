@@ -22,14 +22,14 @@ peer_groups:
     description: Underlay to CEs
     maximum_routes: 0
     maximum_routes_warning_limit: 12000
-    send_community: true
     password: Wpu40zmvmGch4am4DjTbsQ==
+    send_community: true
   WANCORE:
     bfd: true
     description: WAN Core ipv4 underlay peering group
     maximum_routes: 12000
-    send_community: true
     password: Rfpjs767YXSveBVW+RrNQA==
+    send_community: true
   WC-EVPN-TRANSIT:
     bfd: false
     description: WAN Core evpn overlay peering group

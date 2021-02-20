@@ -1,33 +1,35 @@
-multicast: true
+igmp_static_groups: 224.0.1.39 224.0.1.40
+multicast: false
+prefix_lists:
+  Auto_RP_IP:
+    sequence_numbers:
+      '10':
+        action: permit 10.248.1.100/32
+      '11':
+        action: permit 10.248.1.101/32
+route_maps:
+  RM_Auto_RP_IP:
+    sequence_numbers:
+      '10':
+        description: null
+        match:
+        - ip address prefixlist Auto_RP_IP
+        type: permit
+  RM_Auto_RP_IP_deny:
+    sequence_numbers:
+      '10':
+        description: null
+        type: permit
+      '5':
+        description: null
+        match:
+        - ip address prefixlist Auto_RP_IP
+        type: deny
 router_multicast:
   ipv4:
     routing: true
 router_pim_sparse_mode:
   ipv4:
-    rp_addresses: ["10.248.1.100", "10.248.1.101"]
-prefix_lists:
-  Auto_RP_IP:
-    sequence_numbers:
-      10:
-        action: "permit 10.248.1.100/32"
-      11:
-        action: "permit 10.248.1.101/32"
-route_maps:
-  RM_Auto_RP_IP:
-    sequence_numbers:
-      10:
-        type: "permit"
-        description: null
-        match: [ "ip address prefix-list Auto_RP_IP" ]
-  RM_Auto_RP_IP_deny:
-    sequence_numbers:
-      5:
-        type: "deny"
-        description: null
-        match: [ "ip address prefix-list Auto_RP_IP" ]
-      10:
-        type: "permit"
-        description: null
-igmp_static_groups:
-  - 224.0.1.39
-  - 224.0.1.40
+    rp_addresses:
+    - 10.248.1.100
+    - 10.248.1.101

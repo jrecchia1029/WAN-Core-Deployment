@@ -184,6 +184,7 @@ class Handler(object):
         config_settings = {}
         config_settings["bgp"] = yaml.load(open("{}/settings/config_defaults/bgp.yml".format(path)), Loader=yaml.FullLoader)
         config_settings["management"] = yaml.load(open("{}/settings/config_defaults/management.yml".format(path)), Loader=yaml.FullLoader)
+        config_settings["mcast"] = yaml.load(open("{}/settings/config_defaults/mcast.yml".format(path)), Loader=yaml.FullLoader)
         config_settings["cvp"] = yaml.load(open("{}/settings/cvp.yml".format(path)), Loader=yaml.FullLoader)
         return json.dumps(config_settings)
 
@@ -195,14 +196,18 @@ class Handler(object):
         input_json = cherrypy.request.json
         bgp_config = input_json["bgp"]
         management_config = input_json["management"]
+        mcast_config = input_json["mcast"]
         cvp_settings = input_json["cvp"]
 
         with open("{}/settings/config_defaults/bgp.yml".format(path), 'w') as filename:
             yaml.dump(bgp_config, filename)
         with open("{}/settings/config_defaults/management.yml".format(path), 'w') as filename:
             yaml.dump(management_config, filename)
+        with open("{}/settings/config_defaults/mcast.yml".format(path), 'w') as filename:
+            yaml.dump(mcast_config, filename)
         with open("{}/settings/cvp.yml".format(path), 'w') as filename:
             yaml.dump(cvp_settings, filename)
+
 
         return result
         
