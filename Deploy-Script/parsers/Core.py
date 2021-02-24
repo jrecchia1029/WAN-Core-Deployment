@@ -86,11 +86,14 @@ def parseRoutingDetails(workbook):
             lo1_range = worksheet.cell(row, 1).value
         elif worksheet.cell(row, 0).value == "Core ASN Range":
             asn_range = worksheet.cell(row, 1).value
-        elif worksheet.cell(row, 0).value == "Management Address Range":
-            mgmt_range = worksheet.cell(row, 1).value
+        elif worksheet.cell(row, 0).value == "Out-of-Band Management Address Range":
+            oob_mgmt_range = worksheet.cell(row, 1).value
+        elif worksheet.cell(row, 0).value == "In-Band Management Address Range":
+            ib_mgmt_range = worksheet.cell(row, 1).value
 
     routing_details = {
-        "management subnet": mgmt_range,
+        "oob management subnet": oob_mgmt_range,
+        "ib management subnet": ib_mgmt_range,
         "core to core subnet": core_to_core_transit_block,
         "loopback0 subnet": lo0_range,
         "loopback1 subnet": lo1_range,

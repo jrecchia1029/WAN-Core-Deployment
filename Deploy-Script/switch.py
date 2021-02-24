@@ -134,8 +134,8 @@ class CoreRouter():
 
     def getManagementInfo(self, routing_details, ipam, ipam_network):
         self.logger.debug("Getting management info for {}".format(self.hostname))
-        self.ip_address = get_management_address_from_ipam(ipam, ipam_network, routing_details["management subnet"], self.hostname)
-        self.mgmt_gateway = get_management_gateway(ipam, ipam_network, routing_details["management subnet"])
+        self.ip_address = get_management_address_from_ipam(ipam, ipam_network, routing_details["oob management subnet"], self.hostname)
+        self.mgmt_gateway = get_management_gateway(ipam, ipam_network, routing_details["oob management subnet"])
 
     def getCoreInterfaces(self, core_rtrs):
         self.logger.debug("Setting core_interfaces for {}".format(self.hostname))
@@ -378,7 +378,10 @@ class CoreRouter():
                     },
                     #Advertise Management Subnet if using inband management
                     30: {
-                        "action": "permit {} eq 32".format(routing_details["management subnet"])
+                        "action": "permit {} eq 32".format(routing_details["oob management subnet"])
+                    },
+                    40: {
+                        "action": "permit {} eq 32".format(routing_details["ib management subnet"])
                     }
                 }
             },
