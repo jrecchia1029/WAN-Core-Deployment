@@ -38,7 +38,7 @@ logger.addHandler(ch)
 config = {
     'global' : {
         'server.socket_host' : '0.0.0.0',
-        'server.socket_port' : 8080,
+        'server.socket_port' : 8081,
         'server.thread_pool' : 4,
         'server.ssl_module' : 'builtin'
     },
