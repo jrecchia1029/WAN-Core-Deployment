@@ -221,8 +221,8 @@ def printConfiglet(configlet_dictionary):
 
 def create_main_networks_in_infoblox(ib_ipam_client, ib_ipam_view, routing_details):
     ib_types = {
-    "oob management subnet":"network",
-    "ib management subnet": "network",
+    "oob management subnet": None, #"network",
+    "ib management subnet": None, #"network",
     "core to core subnet": "network_container",
     "loopback0 subnet": "network",
     "loopback1 subnet": "network",
