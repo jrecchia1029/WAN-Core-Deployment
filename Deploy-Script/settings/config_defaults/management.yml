@@ -7,3 +7,4 @@ interface: Management0
 interface_description: oob management
 vrf_description: null
 vrf_name: MGMT
+management_plane: inband

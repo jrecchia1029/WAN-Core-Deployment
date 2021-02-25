@@ -133,9 +133,14 @@ class CoreRouter():
         return cleaned_merged_config[:-7]
 
     def getManagementInfo(self, routing_details, ipam, ipam_network):
+        mgmt_settings = yaml.load(open("{}/settings/config_defaults/management.yml".format(path)), Loader=yaml.FullLoader)
         self.logger.debug("Getting management info for {}".format(self.hostname))
-        self.ip_address = get_management_address_from_ipam(ipam, ipam_network, routing_details["oob management subnet"], self.hostname)
-        self.mgmt_gateway = get_management_gateway(ipam, ipam_network, routing_details["oob management subnet"])
+        if mgmt_settings["management_plane"] == "inband":
+            self.ip_address = get_management_address_from_ipam(ipam, ipam_network, routing_details["ib management subnet"], self.hostname)
+            self.mgmt_gateway = get_management_gateway(ipam, ipam_network, routing_details["ib management subnet"])
+        else:
+            self.ip_address = get_management_address_from_ipam(ipam, ipam_network, routing_details["oob management subnet"], self.hostname)
+            self.mgmt_gateway = get_management_gateway(ipam, ipam_network, routing_details["oob management subnet"])
 
     def getCoreInterfaces(self, core_rtrs):
         self.logger.debug("Setting core_interfaces for {}".format(self.hostname))
