@@ -372,8 +372,8 @@ def getCoreRouters(workbook, cvp_ipam, cvp_ipam_network, ib_ipam=None, ib_ipam_n
 
     #Create Core Router object and Update Management Info
     for hostname, info in core_rtr_details.items():
-        rtr = CoreRouter(hostname=hostname, username=username, password=password, serial_number=info["serial number"])
-        rtr.getManagementInfo(routing_details, ib_ipam, ib_ipam_network) if ib_ipam and ib_ipam_network is not None else rtr.getManagementInfo(routing_details, cvp_ipam, cvp_ipam_network)
+        rtr = CoreRouter(hostname=hostname, username=username, password=password, serial_number=info["serial number"], ip_address=info["mgmt ip"])
+        # rtr.getManagementInfo(routing_details, ib_ipam, ib_ipam_network) if ib_ipam and ib_ipam_network is not None else rtr.getManagementInfo(routing_details, cvp_ipam, cvp_ipam_network)
         core_routers.append(rtr)
 
     #Update BGP Neighbor Info
@@ -397,8 +397,8 @@ def getCoreRoutersManagement(workbook, cvp_ipam, cvp_ipam_network, ib_ipam=None,
 
     #Create Core Router object and Update Management Info
     for hostname, info in core_rtr_details.items():
-        rtr = CoreRouter(hostname=hostname, username=username, password=password, serial_number=info["serial number"])
-        rtr.getManagementInfo(routing_details, ib_ipam, ib_ipam_network) if ib_ipam and ib_ipam_network is not None else rtr.getManagementInfo(routing_details, cvp_ipam, cvp_ipam_network)
+        rtr = CoreRouter(hostname=hostname, username=username, password=password, serial_number=info["serial number"], ip_address=info["mgmt ip"])
+        # rtr.getManagementInfo(routing_details, ib_ipam, ib_ipam_network) if ib_ipam and ib_ipam_network is not None else rtr.getManagementInfo(routing_details, cvp_ipam, cvp_ipam_network)
         core_routers.append(rtr)
         
     return core_routers
@@ -590,6 +590,9 @@ def run_script(operation=None, cvp_user=None, cvp_pass=None,
         core_rtrs = getCoreRoutersManagement(workbook, cvp_ipam_client, cvp_ipam_view, ib_ipam=ib_ipam_client, ib_ipam_network=ib_ipam_view)
     else:
         core_rtrs = getCoreRouters(workbook, cvp_ipam_client, cvp_ipam_view, ib_ipam=ib_ipam_client, ib_ipam_network=ib_ipam_view)
+
+    # for rtr in core_rtrs:
+    #     logger.info(rtr)
 
     if int(operation) == 1:
         container = yaml.load(open("{}/settings/cvp.yml".format(path)), Loader=yaml.FullLoader)["container"]

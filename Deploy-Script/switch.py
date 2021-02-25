@@ -65,6 +65,7 @@ class CoreRouter():
             commands = [commands]
 
         try:
+            # self.logger.debug("Connecting to switch using {} and the username {}".format(self.ip_address.split("/")[0], self.username))
             switch = pyeapi.connect(host=self.ip_address.split("/")[0], username=self.username, password=self.password)
             if enable==True:
                 commands.insert(0, "enable")

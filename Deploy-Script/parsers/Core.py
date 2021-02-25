@@ -27,7 +27,8 @@ def parseCoreRouterDetails(workbook):
             core_rtr_links[first_row[col]]=worksheet.cell_value(row,col)
         try:
             name = core_rtr_links["Hostname"].strip()
-            wan_links[name] = {"serial number": core_rtr_links["Serial Number"].strip()}
+            wan_links[name] = {"serial number": core_rtr_links["Serial Number"].strip(), "mgmt ip": core_rtr_links["Management IP Address"].strip()}
+
             # if core_rtr_links["Interface to Halsey"].strip() != "":
             #     wan_links[name][core_rtr_links["Interface to Halsey"].strip()] = {
             #         "neighbor hostname": "Halsey"
