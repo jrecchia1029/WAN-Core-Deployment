@@ -221,13 +221,16 @@ class CoreRouter():
                         }
 
         site_interfaces = self.createPortChannelInterfaces(site_interfaces)
+        # self.logger.info("Site Interfaces After Port Channel Creation:\n")
+        # for iface, iface_details in site_interfaces.items():
+        #     self.logger.info({}: iface_details["neighbor"])
         tmp_site_interfaces = site_interfaces.copy()
         for rtr in site_rtrs:
             for iface, iface_details in tmp_site_interfaces.items():
                     for service in rtr.site.services:
                         if "{}.{}".format(iface, service["subinterface vlan"]) not in site_interfaces.keys():
                             site_interfaces["{}.{}".format(iface, service["subinterface vlan"])] = {
-                                    "neighbor router": rtr,
+                                    "neighbor router": iface_details["neighbor router"],
                                     "neighbor interface": "{}.{}".format(iface_details["neighbor interface"], service["subinterface vlan"]),
                                     # "neighbor interface": "{}.{}".format(neighbor["neighborPort"], service["subinterface vlan"]),
                                     "ip address": None,
@@ -237,6 +240,7 @@ class CoreRouter():
                                     "subnet": service["subinterface subnet"]
                                 }
                             self.logger.info("Added {} to site_interfaces".format("{}.{}".format(iface, service["subinterface vlan"])))
+                            self.logger.info("Neighbor router is {}".format(rtr.hostname))
 
         # #Get IP Address for site interfaces
         for interface, details in site_interfaces.items():
