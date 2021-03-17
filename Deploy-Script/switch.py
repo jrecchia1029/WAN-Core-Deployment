@@ -219,16 +219,25 @@ class CoreRouter():
                             "neighbor ip address": None,
                             "subnet": None,
                         }
+
+        site_interfaces = self.createPortChannelInterfaces(site_interfaces)
+        tmp_site_interfaces = site_interfaces.copy()
+        for rtr in site_rtrs:
+            for iface, iface_details in tmp_site_interfaces.items():
                     for service in rtr.site.services:
-                        site_interfaces["{}.{}".format(neighbor["port"], service["subinterface vlan"])] = {
-                                "neighbor router": rtr,
-                                "neighbor interface": "{}.{}".format(neighbor["neighborPort"], service["subinterface vlan"]),
-                                "ip address": None,
-                                "neighbor ip address": None,
-                                "vlan":  service["subinterface vlan"],
-                                "vrf": service["vrf"],
-                                "subnet": service["subinterface subnet"]
-                            }
+                        if "{}.{}".format(iface, service["subinterface vlan"]) not in site_interfaces.keys():
+                            site_interfaces["{}.{}".format(iface, service["subinterface vlan"])] = {
+                                    "neighbor router": rtr,
+                                    "neighbor interface": "{}.{}".format(iface_details["neighbor interface"], service["subinterface vlan"]),
+                                    # "neighbor interface": "{}.{}".format(neighbor["neighborPort"], service["subinterface vlan"]),
+                                    "ip address": None,
+                                    "neighbor ip address": None,
+                                    "vlan":  service["subinterface vlan"],
+                                    "vrf": service["vrf"],
+                                    "subnet": service["subinterface subnet"]
+                                }
+                            self.logger.info("Added {} to site_interfaces".format("{}.{}".format(iface, service["subinterface vlan"])))
+
         # #Get IP Address for site interfaces
         for interface, details in site_interfaces.items():
             if details["subnet"] is None:
@@ -250,12 +259,123 @@ class CoreRouter():
             neighbor_interface_ip = get_transit_ip_from_ipam(ipam, ipam_network, details["subnet"], neighbor_connection_info, subnet_mask=30)
             site_interfaces[interface]["neighbor ip address"] = neighbor_interface_ip
 
+        # self.logger.debug(site_interfaces)
         self.logger.debug("Setting site_interfaces for {}".format(self.hostname))
         self.site_interfaces = site_interfaces
 
     def getLLDPNeighbors(self):
         self.logger.debug("Retrieving LLDP neighbors for {}".format(self.hostname))
         return self.send_commands_via_eapi(["show lldp neighbors"])[0]["lldpNeighbors"]
+
+    def createPortChannelInterfaces(self, site_interfaces):
+        """If there are duplicate connections to the samee CE router, this script will make those connections a port channel,
+
+        Args:
+            site_interfaces ({}]): {
+                local interface: {
+                            "neighbor router": rtr,
+                            "neighbor interface": neighbor["neighborPort"],
+                            "ip address": None,
+                            "neighbor ip address": None,
+                            "subnet": None,
+                          **"vlan":  service["subinterface vlan"],
+                          **"vrf": service["vrf"],
+                          **"subnet": service["subinterface subnet"]
+                        }
+                    }
+        """
+        port_channel_id = 1
+        ce_port_channels = {} 
+        interfaces_already_in_port_channels = []
+        """
+            port_channel_id : {
+                "neighbor router": rtr,
+                "neighbor interfaces": [ neighbor["neighborPort"] ],
+                "member interfaces" : [ Ethernet12, ... ]
+                "ip address": None,
+                "neighbor ip address": None,
+                "subnet": None,
+                **"vlan":  service["subinterface vlan"],
+                **"vrf": service["vrf"],
+                **"subnet": service["subinterface subnet"]
+            }
+        """
+        #get port-channels already configured on device
+        try:
+            port_channels_allocated = self.send_commands_via_eapi(["show interfaces Port-Channel 1-$"])[0]["interfaces"]
+        except:
+            port_channels_allocated = {}
+        #Check to see out of the already configured port-channels if any of the site interfaces are members
+        for pc, pc_details in port_channels_allocated.items():
+            for iface in pc_details["memberInterfaces"].keys():
+                if iface in site_interfaces.keys():
+                    if pc not in ce_port_channels:
+                        ce_port_channels[pc] = {
+                            "neighbor router": site_interfaces[iface]["neighbor router"],
+                            "neighbor interface": pc,
+                            "member interfaces" : [iface],
+                            "ip address": None,
+                            "neighbor ip address": None,
+                            "subnet": None,
+                        }
+                    else:
+                        ce_port_channels[pc]["member interfaces"].append(iface)
+                    interfaces_already_in_port_channels.append(iface)
+
+        # Create more port-channels if site interfaces have same neighbor router
+        for site_interface_1, iface_details_1 in site_interfaces.items():
+            for site_interface_2, iface_details_2 in site_interfaces.items():
+                #Make sure you are comparing different interfacea (i.e. [Ethernet13 and Ethernet14] and not [Ethernet13 and Ethernet13)
+                if site_interface_1 == site_interface_2 or (site_interface_1 in interfaces_already_in_port_channels and site_interface_2 in interfaces_already_in_port_channels):
+                    continue
+
+                #If the same type of interface has the same neighbor router
+                if iface_details_1["neighbor router"] == iface_details_2["neighbor router"]:
+                    self.logger.debug("{} and {} on have the same LLDP neighbor, {}".format(site_interface_1, site_interface_2, iface_details_1["neighbor router"].hostname))
+                    
+                    interface_already_in_port_channel = False
+                    for pc, pc_info in ce_port_channels.items():
+                        if site_interface_1 in pc_info["member interfaces"]:
+                            ce_port_channels[pc]["member interfaces"].append(site_interface_2)
+                            interfaces_already_in_port_channels.append(site_interface_2)
+                            interface_already_in_port_channel = True
+                            break
+                        elif site_interface_2 in pc_info["member interfaces"]:
+                            ce_port_channels[pc]["member interfaces"].append(site_interface_1)
+                            interfaces_already_in_port_channels.append(site_interface_1)
+                            interface_already_in_port_channel = True
+                            break
+                    if interface_already_in_port_channel == True:
+                        continue
+
+                    while "Port-Channel{}".format(port_channel_id) in ce_port_channels.keys():
+                        port_channel_id += 1
+
+                    ce_port_channels["Port-Channel{}".format(port_channel_id)] = {
+                        "neighbor router": iface_details_1["neighbor router"],
+                        "neighbor interface": "Port-Channel{}".format(port_channel_id),
+                        "member interfaces" : [site_interface_1, site_interface_2],
+                        "ip address": None,
+                        "neighbor ip address": None,
+                        "subnet": None,
+                    }
+                    interfaces_already_in_port_channels.append(site_interface_1)
+                    interfaces_already_in_port_channels.append(site_interface_2)
+
+        #Delete member interfaces from site_interfaces:
+        interfaces_already_in_port_channels = list(set(interfaces_already_in_port_channels))
+        # self.logger.debug("Interfaces already in Port-Channels: {}".format(interfaces_already_in_port_channels))
+        # self.logger.debug(site_interfaces)
+
+        for iface in interfaces_already_in_port_channels:
+            del site_interfaces[iface]
+        # self.logger.debug(site_interfaces)
+        # self.logger.debug(ce_port_channels)
+        site_interfaces.update(ce_port_channels)
+        # print("\n\n\n")
+        # print(site_interfaces)
+        # print("\n\n\n")
+        return site_interfaces
 
     def produceManagementConfig(self):
         #Load default values
@@ -494,24 +614,54 @@ class CoreRouter():
 
         #Format variables for templates
         ethernet_interfaces = {}
+        port_channel_interfaces = {}
         for iface, details in self.site_interfaces.items():
-            ethernet_interfaces[iface] = {
-                "description": "Connection to {} : {}".format(details["neighbor router"].hostname, details["neighbor interface"]),
-                "type": "routed"
-            }
-            if "." in iface:
-                ethernet_interfaces[iface]["type"] = "subinterface"
-                ethernet_interfaces[iface]["vrf"] = details["vrf"]
-                ethernet_interfaces[iface]["vlans"] = details["vlan"]
-                ethernet_interfaces[iface]["ip_address"] = details["ip address"]
-                if mcast_values["multicast"] == True:
-                    ethernet_interfaces[iface]["igmp_static_groups"] = mcast_values["igmp_static_groups"]
-                    ethernet_interfaces[iface]["pim"] = {
-                        "ipv4": {
-                            "sparse_mode": True,
-                            "dr_priority": 100
+            if "Ethernet" in iface:
+                ethernet_interfaces[iface] = {
+                    "description": "Connection to {} : {}".format(details["neighbor router"].hostname, details["neighbor interface"]),
+                    "type": "routed"
+                }
+                if "." in iface:
+                    ethernet_interfaces[iface]["type"] = "subinterface"
+                    ethernet_interfaces[iface]["vrf"] = details["vrf"]
+                    ethernet_interfaces[iface]["vlans"] = details["vlan"]
+                    ethernet_interfaces[iface]["ip_address"] = details["ip address"]
+                    if mcast_values["multicast"] == True:
+                        ethernet_interfaces[iface]["igmp_static_groups"] = mcast_values["igmp_static_groups"]
+                        ethernet_interfaces[iface]["pim"] = {
+                            "ipv4": {
+                                "sparse_mode": True,
+                                "dr_priority": 100
+                            }
                         }
-                    }
+            elif "Port-Channel" in iface:
+                port_channel_interfaces[iface] = {
+                    "description": "Connection to {} : {}".format(details["neighbor router"].hostname, details["neighbor interface"]),
+                    "type": "routed"
+                }
+                if "." in iface:
+                    port_channel_interfaces[iface]["type"] = "subinterface"
+                    port_channel_interfaces[iface]["vrf"] = details["vrf"]
+                    port_channel_interfaces[iface]["vlans"] = details["vlan"]
+                    port_channel_interfaces[iface]["ip_address"] = details["ip address"]
+                    if mcast_values["multicast"] == True:
+                        port_channel_interfaces[iface]["igmp_static_groups"] = mcast_values["igmp_static_groups"]
+                        port_channel_interfaces[iface]["pim"] = {
+                            "ipv4": {
+                                "sparse_mode": True,
+                                "dr_priority": 100
+                            }
+                        }
+                if "member interfaces" in details.keys():
+                    for member in details["member interfaces"]:
+                        ethernet_interfaces[member] = {
+                            "description": "Connection to {}".format(details["neighbor router"].hostname),
+                            "type": "routed",
+                            "channel_group": {
+                                "id": re.match(r'Port-Channel(\d+)', iface).group(1),
+                                "mode": "active"
+                            }
+                        }
 
         #Format BGP & VRF variables 
         router_bgp = {
@@ -549,6 +699,7 @@ class CoreRouter():
             "ip_routing": True,
             "vrfs": router_bgp["vrfs"],
             "ethernet_interfaces": ethernet_interfaces,
+            "port_channel_interfaces": port_channel_interfaces,
             "router_bgp": router_bgp
         }
         template = env.get_template('core-to-site-configlet.j2')
