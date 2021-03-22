@@ -345,6 +345,9 @@ router bgp {{ router_bgp.as }}
 {%             endif %}
 {%             if router_bgp.vrfs[vrf].neighbors is defined and router_bgp.vrfs[vrf].neighbors is not none %}
 {%                 for neighbor in router_bgp.vrfs[vrf].neighbors %}
+{%                      if router_bgp.vrfs[vrf].neighbors[neighbor].description is defined and router_bgp.vrfs[vrf].neighbors[neighbor].description is not none %}
+      neighbor {{ neighbor }} description {{ router_bgp.vrfs[vrf].neighbors[neighbor].description }}
+{%                      endif %}
 {%                      if router_bgp.vrfs[vrf].neighbors[neighbor].remote_as is defined and router_bgp.vrfs[vrf].neighbors[neighbor].remote_as is not none %}
       neighbor {{ neighbor }} remote-as {{ router_bgp.vrfs[vrf].neighbors[neighbor].remote_as }}
 {%                      endif %}

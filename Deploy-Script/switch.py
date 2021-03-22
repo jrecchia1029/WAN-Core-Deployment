@@ -377,15 +377,13 @@ class CoreRouter():
 
         #Delete member interfaces from site_interfaces:
         interfaces_already_in_port_channels = list(set(interfaces_already_in_port_channels))
+
         # self.logger.debug("Interfaces already in Port-Channels: {}".format(interfaces_already_in_port_channels))
         # self.logger.debug(site_interfaces)
-
-        for iface in interfaces_already_in_port_channels:
-            del site_interfaces[iface]
+        # for iface in interfaces_already_in_port_channels:
+        #     del site_interfaces[iface]
         # self.logger.debug(site_interfaces)
         # self.logger.debug(ce_port_channels)
-        interfaces_already_in_port_channels = []
-
         # print("\n\n\n")
         # print(site_interfaces)
         # print("\n\n\n")
@@ -468,7 +466,8 @@ class CoreRouter():
             ethernet_interfaces[iface] = {
                 "description": "Connection to {} : {}".format(details["neighbor hostname"], details["neighbor interface"]),
                 "type": "routed",
-                "ip_address": details["ip address"]
+                "ip_address": details["ip address"],
+                "mtu": 9214
             }
             if mcast_values["multicast"] == True:
                 ethernet_interfaces[iface]["igmp_static_groups"] = mcast_values["igmp_static_groups"]
@@ -633,7 +632,8 @@ class CoreRouter():
             if "Ethernet" in iface:
                 ethernet_interfaces[iface] = {
                     "description": "Connection to {} : {}".format(details["neighbor router"].hostname, details["neighbor interface"]),
-                    "type": "routed"
+                    "type": "routed",
+                    "mtu": 9214
                 }
                 if "." in iface:
                     ethernet_interfaces[iface]["type"] = "subinterface"
@@ -651,7 +651,8 @@ class CoreRouter():
             elif "Port-Channel" in iface:
                 port_channel_interfaces[iface] = {
                     "description": "Connection to {} : {}".format(details["neighbor router"].hostname, details["neighbor interface"]),
-                    "type": "routed"
+                    "type": "routed",
+                    "mtu": 9214
                 }
                 if "." in iface:
                     port_channel_interfaces[iface]["type"] = "subinterface"
@@ -688,7 +689,8 @@ class CoreRouter():
                 if "vrf" not in details.keys():
                     router_bgp["neighbors"][details["neighbor ip address"].split("/")[0]] = {
                         "remote_as": details["neighbor router"].site.asn,
-                        "peer_group": bgp_values["core_to_site_peer_group"]
+                        "peer_group": bgp_values["core_to_site_peer_group"],
+                        "description": "Peering with {}".format(details["neighbor router"].hostname)
                     }
                 else:
                     #If no service vrf exists in routger_bgp["vrfs"] details yet create one
@@ -701,6 +703,7 @@ class CoreRouter():
                     router_bgp["vrfs"][ details["vrf"] ]["neighbors"][details["neighbor ip address"].split("/")[0]] = {
                         "remote_as": details["neighbor router"].site.asn,
                         "peer_group": bgp_values["core_to_site_peer_group"],
+                        "description": "Peering with {}".format(details["neighbor router"].hostname),
                         #Max routes for service VRF neighbors
                         "maximum_routes": bgp_values["service_vrfs"]["maximum_routes"],
                         "maximum_routes_warning_limit": bgp_values["service_vrfs"]["maximum_routes_warning_limit"]
