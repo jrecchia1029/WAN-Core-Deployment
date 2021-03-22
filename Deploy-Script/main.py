@@ -500,20 +500,6 @@ def addSiteRouterConnections(core_rtrs, site_rtrs, ipam, ipam_network, cvp_clien
 
     return
 
-def addSiteRouterConnectionsTest(core_rtrs, site_rtrs, ipam, ipam_network, cvp_client=None):
-    #Get Core Router Device Dictionary from CVP 
-    if cvp_client is not None:
-        cvp_core_rtr_info = getCoreRouterInfoFromCVP(cvp_client, core_rtrs)
-
-    #Create configuration for Site  neighbors
-    for rtr in core_rtrs:
-        if rtr.hostname == "wc-halsey":
-            #Get site_interface info
-            rtr.getSiteInterfaces(site_rtrs, ipam, ipam_network)
-            site_config = rtr.produceCoreToSiteConfig()
-            logger.info(site_config)
-    return
-
 def addServicesToSite(core_rtrs, site_rtrs, ipam, ipam_network, cvp_client=None):
     return addSiteRouterConnections(core_rtrs, site_rtrs, ipam, ipam_network, cvp_client=cvp_client)
 
@@ -621,8 +607,6 @@ def run_script(operation=None, cvp_user=None, cvp_pass=None,
 
     elif int(operation) == 3:
         logger.info("Creating Site Configs...")
-        # addSiteRouterConnectionsTest(core_rtrs, site_rtrs, cvp_ipam_client, cvp_ipam_view, cvp_client=cvp)
-        # return
         if ib_ipam_client is not None and ib_ipam_view is not None:
             addSiteRouterConnections(core_rtrs, site_rtrs, ib_ipam_client, ib_ipam_view, cvp_client=cvp)
         else:
