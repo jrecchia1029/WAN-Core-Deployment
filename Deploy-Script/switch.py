@@ -288,7 +288,7 @@ class CoreRouter():
                         }
                     }
         """
-        port_channel_id = 1
+        port_channel_id = 300
         ce_port_channels = {} 
         interfaces_already_in_port_channels = []
         """
@@ -352,7 +352,7 @@ class CoreRouter():
                     if interface_already_in_port_channel == True:
                         continue
 
-                    while "Port-Channel{}".format(port_channel_id) in ce_port_channels.keys():
+                    while "Port-Channel{}".format(port_channel_id) in ce_port_channels.keys() or "Port-Channel{}".format(port_channel_id) in port_channels_allocated.keys():
                         port_channel_id += 1
 
                     ce_port_channels["Port-Channel{}".format(port_channel_id)] = {
@@ -375,11 +375,29 @@ class CoreRouter():
             del site_interfaces[iface]
         # self.logger.debug(site_interfaces)
         # self.logger.debug(ce_port_channels)
-        site_interfaces.update(ce_port_channels)
+        interfaces_already_in_port_channels = []
+
+        #Make remaining site interfaces port-channels
+        for site_interface_1, iface_details_1 in site_interfaces.items():
+            if site_interface_1 in interfaces_already_in_port_channels:
+                continue
+            while "Port-Channel{}".format(port_channel_id) in ce_port_channels.keys() or "Port-Channel{}".format(port_channel_id) in port_channels_allocated.keys():
+                port_channel_id += 1
+
+            ce_port_channels["Port-Channel{}".format(port_channel_id)] = {
+                "neighbor router": iface_details_1["neighbor router"],
+                "neighbor interface": "Port-Channel{}".format(port_channel_id),
+                "member interfaces" : [site_interface_1],
+                "ip address": None,
+                "neighbor ip address": None,
+                "subnet": None,
+            }
+            interfaces_already_in_port_channels.append(site_interface_1)
+
         # print("\n\n\n")
         # print(site_interfaces)
         # print("\n\n\n")
-        return site_interfaces
+        return ce_port_channels
 
     def produceManagementConfig(self):
         #Load default values
