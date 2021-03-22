@@ -326,13 +326,14 @@ class CoreRouter():
                         ce_port_channels[pc]["member interfaces"].append(iface)
                     interfaces_already_in_port_channels.append(iface)
 
-        # Create more port-channels if site interfaces have same neighbor router
+        # Create more port-channels for remaining site interfaces
         for site_interface_1, iface_details_1 in site_interfaces.items():
+            while "Port-Channel{}".format(port_channel_id) in ce_port_channels.keys() or "Port-Channel{}".format(port_channel_id) in port_channels_allocated.keys():
+                port_channel_id += 1
             for site_interface_2, iface_details_2 in site_interfaces.items():
                 #Make sure you are comparing different interfacea (i.e. [Ethernet13 and Ethernet14] and not [Ethernet13 and Ethernet13)
                 if site_interface_1 == site_interface_2 or (site_interface_1 in interfaces_already_in_port_channels and site_interface_2 in interfaces_already_in_port_channels):
                     continue
-
                 #If the same type of interface has the same neighbor router
                 if iface_details_1["neighbor router"] == iface_details_2["neighbor router"]:
                     self.logger.debug("{} and {} on have the same LLDP neighbor, {}".format(site_interface_1, site_interface_2, iface_details_1["neighbor router"].hostname))
@@ -352,9 +353,6 @@ class CoreRouter():
                     if interface_already_in_port_channel == True:
                         continue
 
-                    while "Port-Channel{}".format(port_channel_id) in ce_port_channels.keys() or "Port-Channel{}".format(port_channel_id) in port_channels_allocated.keys():
-                        port_channel_id += 1
-
                     ce_port_channels["Port-Channel{}".format(port_channel_id)] = {
                         "neighbor router": iface_details_1["neighbor router"],
                         "neighbor interface": "Port-Channel{}".format(port_channel_id),
@@ -366,6 +364,17 @@ class CoreRouter():
                     interfaces_already_in_port_channels.append(site_interface_1)
                     interfaces_already_in_port_channels.append(site_interface_2)
 
+            if site_interface_1 not in interfaces_already_in_port_channels:
+                ce_port_channels["Port-Channel{}".format(port_channel_id)] = {
+                    "neighbor router": iface_details_1["neighbor router"],
+                    "neighbor interface": "Port-Channel{}".format(port_channel_id),
+                    "member interfaces" : [site_interface_1],
+                    "ip address": None,
+                    "neighbor ip address": None,
+                    "subnet": None,
+                }
+                interfaces_already_in_port_channels.append(site_interface_1)
+
         #Delete member interfaces from site_interfaces:
         interfaces_already_in_port_channels = list(set(interfaces_already_in_port_channels))
         # self.logger.debug("Interfaces already in Port-Channels: {}".format(interfaces_already_in_port_channels))
@@ -376,23 +385,6 @@ class CoreRouter():
         # self.logger.debug(site_interfaces)
         # self.logger.debug(ce_port_channels)
         interfaces_already_in_port_channels = []
-
-        #Make remaining site interfaces port-channels
-        for site_interface_1, iface_details_1 in site_interfaces.items():
-            if site_interface_1 in interfaces_already_in_port_channels:
-                continue
-            while "Port-Channel{}".format(port_channel_id) in ce_port_channels.keys() or "Port-Channel{}".format(port_channel_id) in port_channels_allocated.keys():
-                port_channel_id += 1
-
-            ce_port_channels["Port-Channel{}".format(port_channel_id)] = {
-                "neighbor router": iface_details_1["neighbor router"],
-                "neighbor interface": "Port-Channel{}".format(port_channel_id),
-                "member interfaces" : [site_interface_1],
-                "ip address": None,
-                "neighbor ip address": None,
-                "subnet": None,
-            }
-            interfaces_already_in_port_channels.append(site_interface_1)
 
         # print("\n\n\n")
         # print(site_interfaces)
