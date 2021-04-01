@@ -129,6 +129,9 @@ interface {{ port_channel_interface }}
 {%         if port_channel_interfaces[port_channel_interface].ipv6_access_group_out is defined and port_channel_interfaces[port_channel_interface].ipv6_access_group_out is not none %}
    ipv6 access-group {{ port_channel_interfaces[port_channel_interface].ipv6_access_group_out }} out
 {%            endif %}
+{%         if port_channel_interfaces[port_channel_interface].igmp_version is defined and port_channel_interfaces[port_channel_interface].igmp_version is not none %}
+   ip igmp version {{ port_channel_interfaces[port_channel_interface].igmp_version }}
+{%         endif %}
 {%         if port_channel_interfaces[port_channel_interface].igmp_static_groups is defined and port_channel_interfaces[port_channel_interface].igmp_static_groups is not none %}
 {%            for group in port_channel_interfaces[port_channel_interface].igmp_static_groups %}
    ip igmp static-group {{ group }}

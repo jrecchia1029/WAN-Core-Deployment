@@ -1,5 +1,8 @@
-igmp_static_groups: ["224.0.1.39", "224.0.1.40"]
-multicast: false
+igmp_static_groups:
+- 224.0.1.39
+- 224.0.1.40
+igmp_version: 2
+multicast: true
 prefix_lists:
   Auto_RP_IP:
     sequence_numbers:
