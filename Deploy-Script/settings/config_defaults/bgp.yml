@@ -24,6 +24,7 @@ peer_groups:
     maximum_routes_warning_limit: 12000
     password: Wpu40zmvmGch4am4DjTbsQ==
     send_community: true
+    timers: 3 9
   WANCORE:
     bfd: true
     description: WAN Core ipv4 underlay peering group
