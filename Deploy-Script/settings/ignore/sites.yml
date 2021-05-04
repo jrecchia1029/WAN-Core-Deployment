@@ -1,0 +1,4 @@
+sites_to_ignore:
+  - NY1275
+  - MTDC
+  - LHDC

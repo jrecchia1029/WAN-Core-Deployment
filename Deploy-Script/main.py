@@ -348,12 +348,15 @@ def getSites(workbook):
     return sites
 
 def getSiteRouters(workbook):
+    sites_to_ignore =  yaml.load(open("{}/settings/ignore/sites.yml".format(path)), Loader=yaml.FullLoader)["sites_to_ignore"]
     site_routers = []
     sites = getSites(workbook)
     site_rtrs = parseSiteRouters(workbook)
     for rtr in site_rtrs:
         found_site = False
         for site in sites:
+            if site in sites_to_ignore:
+                continue
             if rtr["Site"] == site.name:
                 site_routers.append(SiteRouter(rtr["Hostname"], site))
                 found_site = True

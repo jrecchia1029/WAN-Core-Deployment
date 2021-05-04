@@ -8,13 +8,17 @@ prefix_lists:
     sequence_numbers:
       '10':
         action: permit 10.248.1.100/32
+      '15':
+        action: permit 10.248.20.8/30
+      '20':
+        action: permit 10.248.20.28/30
 route_maps:
   RM_EXPORT:
     sequence_numbers:
       '10':
         description: null
         match:
-        - ip address prefixlist Auto_RP_IP
+        - ip address prefix-list Auto_RP_IP
         type: permit
   RM_EXPORT_DENY:
     sequence_numbers:

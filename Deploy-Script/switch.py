@@ -660,15 +660,15 @@ class CoreRouter():
                     port_channel_interfaces[iface]["vrf"] = details["vrf"]
                     port_channel_interfaces[iface]["vlans"] = details["vlan"]
                     port_channel_interfaces[iface]["ip_address"] = details["ip address"]
-                    if mcast_values["multicast"] == True:
-                        port_channel_interfaces[iface]["igmp_version"] = mcast_values["igmp_version"]
-                        port_channel_interfaces[iface]["igmp_static_groups"] = mcast_values["igmp_static_groups"]
-                        port_channel_interfaces[iface]["pim"] = {
-                            "ipv4": {
-                                "sparse_mode": True,
-                                "dr_priority": 100
-                            }
+                if mcast_values["multicast"] == True:
+                    port_channel_interfaces[iface]["igmp_version"] = mcast_values["igmp_version"]
+                    port_channel_interfaces[iface]["igmp_static_groups"] = mcast_values["igmp_static_groups"]
+                    port_channel_interfaces[iface]["pim"] = {
+                        "ipv4": {
+                            "sparse_mode": True,
+                            "dr_priority": 100
                         }
+                    }
                 if "member interfaces" in details.keys():
                     for member in details["member interfaces"]:
                         ethernet_interfaces[member] = {
