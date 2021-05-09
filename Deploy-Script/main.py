@@ -341,7 +341,6 @@ def getSites(workbook):
         for service in services:
             if service["vrf"] in info["Services"]:
                 services_to_add_to_site.append(service)
-
         site = Site(info["Name"], services_to_add_to_site, asn=info["ASN"])
         sites.append(site)
 
@@ -355,14 +354,12 @@ def getSiteRouters(workbook):
     for rtr in site_rtrs:
         found_site = False
         for site in sites:
-            if site in sites_to_ignore:
-                continue
-            if rtr["Site"] == site.name:
+            if rtr["Site"] == site.name and site.name not in sites_to_ignore:
                 site_routers.append(SiteRouter(rtr["Hostname"], site))
                 found_site = True
                 break
         if found_site == False:
-            logger.warning("Could not find a {} in sites for {}".format(rtr["Site"], rtr["Hostname"]))
+            logger.warning("Could not find a site entry for {} for CE router {}".format(rtr["Site"], rtr["Hostname"]))
     return site_routers
 
 def getCoreRouters(workbook, cvp_ipam, cvp_ipam_network, ib_ipam=None, ib_ipam_network=None):

@@ -464,7 +464,7 @@ class CoreRouter():
         ethernet_interfaces = {}
         for iface, details in self.core_interfaces.items():
             ethernet_interfaces[iface] = {
-                "description": "Connection to {} : {}".format(details["neighbor hostname"], details["neighbor interface"]),
+                "description": "to {} : {}".format(details["neighbor hostname"], details["neighbor interface"]),
                 "type": "routed",
                 "ip_address": details["ip address"],
                 "mtu": 9214
@@ -631,7 +631,7 @@ class CoreRouter():
         for iface, details in self.site_interfaces.items():
             if "Ethernet" in iface:
                 ethernet_interfaces[iface] = {
-                    "description": "Connection to {} : {}".format(details["neighbor router"].hostname, details["neighbor interface"]),
+                    "description": "to {} : {}".format(details["neighbor router"].hostname, details["neighbor interface"]),
                     "type": "routed",
                     "mtu": 9214
                 }
@@ -651,7 +651,7 @@ class CoreRouter():
                         }
             elif "Port-Channel" in iface:
                 port_channel_interfaces[iface] = {
-                    "description": "Connection to {} : {}".format(details["neighbor router"].hostname, details["neighbor interface"]),
+                    "description": "to {} : {}".format(details["neighbor router"].hostname, details["neighbor interface"]),
                     "type": "routed",
                     "mtu": 9214
                 }
@@ -672,7 +672,7 @@ class CoreRouter():
                 if "member interfaces" in details.keys():
                     for member in details["member interfaces"]:
                         ethernet_interfaces[member] = {
-                            "description": "Connection to {}".format(details["neighbor router"].hostname),
+                            "description": "to {}".format(details["neighbor router"].hostname),
                             "type": "routed",
                             "channel_group": {
                                 "id": re.match(r'Port-Channel(\d+)', iface).group(1),
@@ -692,7 +692,7 @@ class CoreRouter():
                     router_bgp["neighbors"][details["neighbor ip address"].split("/")[0]] = {
                         "remote_as": details["neighbor router"].site.asn,
                         "peer_group": bgp_values["core_to_site_peer_group"],
-                        "description": "Peering with {}".format(details["neighbor router"].hostname)
+                        "description": "{}".format(details["neighbor router"].hostname)
                     }
                 else:
                     #If no service vrf exists in routger_bgp["vrfs"] details yet create one
@@ -705,7 +705,7 @@ class CoreRouter():
                     router_bgp["vrfs"][ details["vrf"] ]["neighbors"][details["neighbor ip address"].split("/")[0]] = {
                         "remote_as": details["neighbor router"].site.asn,
                         "peer_group": bgp_values["core_to_site_peer_group"],
-                        "description": "Peering with {}".format(details["neighbor router"].hostname),
+                        "description": "{}".format(details["neighbor router"].hostname),
                         #Max routes for service VRF neighbors
                         "maximum_routes": bgp_values["service_vrfs"]["maximum_routes"],
                         "maximum_routes_warning_limit": bgp_values["service_vrfs"]["maximum_routes_warning_limit"]
