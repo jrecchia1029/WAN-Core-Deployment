@@ -336,7 +336,7 @@ class CoreRouter():
                     continue
                 #If the same type of interface has the same neighbor router
                 if iface_details_1["neighbor router"] == iface_details_2["neighbor router"]:
-                    self.logger.debug("{} and {} on have the same LLDP neighbor, {}".format(site_interface_1, site_interface_2, iface_details_1["neighbor router"].hostname))
+                    self.logger.debug("{} and {} have the same LLDP neighbor, {}".format(site_interface_1, site_interface_2, iface_details_1["neighbor router"].hostname))
                     
                     interface_already_in_port_channel = False
                     for pc, pc_info in ce_port_channels.items():
@@ -674,10 +674,11 @@ class CoreRouter():
                         ethernet_interfaces[member] = {
                             "description": "to {}".format(details["neighbor router"].hostname),
                             "type": "routed",
+                            "mtu": 9214,
                             "channel_group": {
                                 "id": re.match(r'Port-Channel(\d+)', iface).group(1),
                                 "mode": "active"
-                            }
+                            },
                         }
 
         #Format BGP & VRF variables 
