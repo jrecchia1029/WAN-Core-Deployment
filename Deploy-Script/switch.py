@@ -467,7 +467,12 @@ class CoreRouter():
                 "description": "to {} : {}".format(details["neighbor hostname"], details["neighbor interface"]),
                 "type": "routed",
                 "ip_address": details["ip address"],
-                "mtu": 9214
+                "mtu": 9214,
+                "logging":{
+                    "event": {
+                        "link_status": True
+                    }
+                }
             }
             if mcast_values["multicast"] == True:
                 ethernet_interfaces[iface]["igmp_static_groups"] = mcast_values["igmp_static_groups"]
@@ -633,7 +638,12 @@ class CoreRouter():
                 ethernet_interfaces[iface] = {
                     "description": "to {} : {}".format(details["neighbor router"].hostname, details["neighbor interface"]),
                     "type": "routed",
-                    "mtu": 9214
+                    "mtu": 9214,
+                    "logging":{
+                        "event": {
+                            "link_status": True
+                        }
+                    }
                 }
                 if "." in iface:
                     ethernet_interfaces[iface]["type"] = "subinterface"
@@ -653,7 +663,12 @@ class CoreRouter():
                 port_channel_interfaces[iface] = {
                     "description": "to {} : {}".format(details["neighbor router"].hostname, details["neighbor interface"]),
                     "type": "routed",
-                    "mtu": 9214
+                    "mtu": 9214,
+                    "logging":{
+                        "event": {
+                            "link_status": True
+                        }
+                    }
                 }
                 if "." in iface:
                     port_channel_interfaces[iface]["type"] = "subinterface"
@@ -679,6 +694,11 @@ class CoreRouter():
                                 "id": re.match(r'Port-Channel(\d+)', iface).group(1),
                                 "mode": "active"
                             },
+                            "logging":{
+                                "event": {
+                                    "link_status": True
+                                }
+                            }
                         }
 
         #Format BGP & VRF variables 
