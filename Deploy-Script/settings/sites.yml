@@ -1,0 +1,33 @@
+sites_peering_on_svis:
+  Houston:
+    core_routers:
+      wc-eighth:
+        services:
+          vrf1:
+            subinterface_vlan_tag: 204
+          vrf2:
+            subinterface_vlan_tag: 208
+      wc-hudson:
+        services:
+          vrf1:
+            subinterface_vlan_tag: 104
+          vrf2:
+            subinterface_vlan_tag: 108
+  Tampa:
+    core_routers:
+      wc-eighth:
+        services:
+          vrf1:
+            subinterface_vlan_tag: 204
+          vrf2:
+            subinterface_vlan_tag: 208
+      wc-hudson:
+        services:
+          vrf1:
+            subinterface_vlan_tag: 104
+          vrf2:
+            subinterface_vlan_tag: 108
+sites_to_ignore:
+- NY1275
+- MTDC
+- LHDC

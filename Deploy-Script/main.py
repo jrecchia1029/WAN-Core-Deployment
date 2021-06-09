@@ -186,6 +186,7 @@ class Handler(object):
         config_settings["management"] = yaml.load(open("{}/settings/config_defaults/management.yml".format(path)), Loader=yaml.FullLoader)
         config_settings["mcast"] = yaml.load(open("{}/settings/config_defaults/mcast.yml".format(path)), Loader=yaml.FullLoader)
         config_settings["cvp"] = yaml.load(open("{}/settings/cvp.yml".format(path)), Loader=yaml.FullLoader)
+        config_settings["sites"] = yaml.load(open("{}/settings/sites.yml".format(path)), Loader=yaml.FullLoader)
         return json.dumps(config_settings)
 
     @cherrypy.expose
@@ -198,6 +199,7 @@ class Handler(object):
         management_config = input_json["management"]
         mcast_config = input_json["mcast"]
         cvp_settings = input_json["cvp"]
+        site_settings = input_json["sites"]
 
         with open("{}/settings/config_defaults/bgp.yml".format(path), 'w') as filename:
             yaml.dump(bgp_config, filename)
@@ -207,6 +209,8 @@ class Handler(object):
             yaml.dump(mcast_config, filename)
         with open("{}/settings/cvp.yml".format(path), 'w') as filename:
             yaml.dump(cvp_settings, filename)
+        with open("{}/settings/sites.yml".format(path), 'w') as filename:
+            yaml.dump(site_settings, filename)
 
 
         return result
@@ -347,7 +351,7 @@ def getSites(workbook):
     return sites
 
 def getSiteRouters(workbook):
-    sites_to_ignore =  yaml.load(open("{}/settings/ignore/sites.yml".format(path)), Loader=yaml.FullLoader)["sites_to_ignore"]
+    sites_to_ignore =  yaml.load(open("{}/settings/sites.yml".format(path)), Loader=yaml.FullLoader)["sites_to_ignore"]
     site_routers = []
     sites = getSites(workbook)
     site_rtrs = parseSiteRouters(workbook)

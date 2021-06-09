@@ -203,6 +203,7 @@ class CoreRouter():
         self.core_bgp_neighbors = bgp_neighbors
 
     def getSiteInterfaces(self, site_rtrs, ipam, ipam_network):
+        sites_peering_on_svis = yaml.load(open("{}/settings/sites.yml".format(path)), Loader=yaml.FullLoader)["sites_peering_on_svis"]
         self.logger.debug("Getting site_interfaces for {}".format(self.hostname))
         site_interfaces = {}
         lldp_neighbors = self.getLLDPNeighbors()
@@ -219,28 +220,45 @@ class CoreRouter():
                             "neighbor ip address": None,
                             "subnet": None,
                         }
-
         site_interfaces = self.createPortChannelInterfaces(site_interfaces)
         # self.logger.info("Site Interfaces After Port Channel Creation:\n")
         # for iface, iface_details in site_interfaces.items():
         #     self.logger.info({}: iface_details["neighbor"])
         tmp_site_interfaces = site_interfaces.copy()
-        for rtr in site_rtrs:
-            for iface, iface_details in tmp_site_interfaces.items():
-                    for service in rtr.site.services:
-                        if "{}.{}".format(iface, service["subinterface vlan"]) not in site_interfaces.keys():
-                            site_interfaces["{}.{}".format(iface, service["subinterface vlan"])] = {
-                                    "neighbor router": iface_details["neighbor router"],
-                                    "neighbor interface": "{}.{}".format(iface_details["neighbor interface"], service["subinterface vlan"]),
-                                    # "neighbor interface": "{}.{}".format(neighbor["neighborPort"], service["subinterface vlan"]),
-                                    "ip address": None,
-                                    "neighbor ip address": None,
-                                    "vlan":  service["subinterface vlan"],
-                                    "vrf": service["vrf"],
-                                    "subnet": service["subinterface subnet"]
-                                }
-                            self.logger.info("Added {} to site_interfaces".format("{}.{}".format(iface, service["subinterface vlan"])))
-                            self.logger.info("Neighbor router is {}".format(rtr.hostname))
+        for iface, iface_details in tmp_site_interfaces.items():
+            rtr = iface_details["neighbor router"]
+            for service in rtr.site.services:
+                if "{}.{}".format(iface, service["subinterface vlan"]) not in site_interfaces.keys():
+                    #If CE site requires peering on SVI
+                    self.logger.info("{} ---- {}".format(rtr.site.name, list(sites_peering_on_svis.keys())))
+                    if sites_peering_on_svis.get(rtr.site.name) is not None and sites_peering_on_svis[ rtr.site.name ]["core_routers"][ self.hostname ][ "services" ].get(service["vrf"]) is not None:
+                        subinterface_vlan_tag = sites_peering_on_svis[ rtr.site.name ]["core_routers"][ self.hostname ]["services"][ service["vrf"] ]["subinterface_vlan_tag"]
+                        site_interfaces[ "{}.{}".format(iface, service["subinterface vlan"]) ] = {
+                                "neighbor router": rtr,
+                                "neighbor interface": "{}.{}".format(iface_details["neighbor interface"], subinterface_vlan_tag),
+                                # "neighbor interface": "{}.{}".format(neighbor["neighborPort"], subinterface_vlan),
+                                "ip address": None,
+                                "neighbor ip address": None,
+                                "vlan":  subinterface_vlan_tag,
+                                "vrf": service["vrf"],
+                                "subnet": service["subinterface subnet"]
+                            }
+                        self.logger.info("Added {} to site_interfaces".format("{}.{}".format(iface, service["subinterface vlan"])))
+                        self.logger.info("Neighbor router is {}".format(rtr.hostname))
+                    #If CE site peering will be done on subinterfaces (This is the standard)
+                    else:
+                        site_interfaces["{}.{}".format(iface, service["subinterface vlan"])] = {
+                                "neighbor router": rtr,
+                                "neighbor interface": "{}.{}".format(iface_details["neighbor interface"], service["subinterface vlan"]),
+                                # "neighbor interface": "{}.{}".format(neighbor["neighborPort"], service["subinterface vlan"]),
+                                "ip address": None,
+                                "neighbor ip address": None,
+                                "vlan":  service["subinterface vlan"],
+                                "vrf": service["vrf"],
+                                "subnet": service["subinterface subnet"]
+                            }
+                        self.logger.info("Added {} to site_interfaces".format("{}.{}".format(iface, service["subinterface vlan"])))
+                        self.logger.info("Neighbor router is {}".format(rtr.hostname))
 
         # #Get IP Address for site interfaces
         for interface, details in site_interfaces.items():
